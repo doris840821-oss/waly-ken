@@ -310,7 +310,10 @@ async function loadAll(){
       type:String(r['對象']||''),
       amount:Number(r['金額']||0),
       note:String(r['備註']||''),
-    })).filter(r=>r.date&&r.type).sort((a,b)=>b.date.localeCompare(a.date));
+    })).filter(r=>r.date&&r.type).sort((a,b)=>{
+      const toNum=d=>{ const p=d.split('/'); return Number(p[0])*10000+Number(p[1])*100+Number(p[2]); };
+      return toNum(b.date)-toNum(a.date);
+    });
 
     stocksData=stk.map(r=>({
       date:parseDate(r['日期']),
