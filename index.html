@@ -87,6 +87,10 @@ tr:hover td{background:#FFF7F9}
 .profit-dash{font-size:12px;color:var(--muted);cursor:pointer;border-bottom:1px dashed var(--muted)}
 .profit-dash:hover{color:var(--teal);border-color:var(--teal)}
 .profit-total-row td{background:#F0FAF6;border-top:1px solid #9FE1CB}
+.loading-overlay{position:fixed;inset:0;background:rgba(253,249,247,0.92);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+.loading-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--pink);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:13px;color:var(--muted)}
 .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--text);color:#fff;font-size:13px;padding:10px 16px;border-radius:10px;z-index:300;opacity:0;transition:opacity .3s;pointer-events:none}
 .toast.show{opacity:1}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:100;align-items:center;justify-content:center}
@@ -105,10 +109,17 @@ tr:hover td{background:#FFF7F9}
 .stock-list-item{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
 .stock-list-item:last-child{border-bottom:none}
 .divider{border:none;border-top:1px solid var(--border);margin:0.875rem 0}
+.err-bar{background:#FFF0F0;border:1px solid #F7C1C1;border-radius:10px;padding:12px 16px;font-size:13px;color:var(--red);margin:1rem}
 </style>
 </head>
 <body>
+
+<div id="loading-overlay" class="loading-overlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text" id="loading-text">從 Google Sheet 載入資料中...</div>
+</div>
 <div id="toast" class="toast"></div>
+
 <div class="header">
   <div class="header-left">
     <div class="logo">W&K</div>
@@ -116,10 +127,11 @@ tr:hover td{background:#FFF7F9}
   </div>
   <div class="header-right">
     <span class="sync-status" id="sync-status"></span>
-    <button class="sync-btn" onclick="pushAllToSheet()">☁️ 同步到 Sheet</button>
+    <button class="sync-btn" onclick="loadAll()">↻ 重新載入</button>
     <div class="date-badge" id="today-date"></div>
   </div>
 </div>
+
 <div class="tabs">
   <div class="tab active" onclick="switchTab('savings')">💰 活儲帳戶</div>
   <div class="tab" onclick="switchTab('stocks')">📈 證券帳戶</div>
@@ -221,172 +233,105 @@ tr:hover td{background:#FFF7F9}
 <script>
 const API='https://script.google.com/macros/s/AKfycbwIEy7UIXpq1RTYJZHdvvGpOXiwaskxYU8HR8VSduPK4bLAwUF8WrHhWcYIhJ2KviMMvw/exec';
 
-// ── 活儲帳戶（完整資料含最新更新）──
-let savingsData=[
-  {date:'2025/4/10',type:'玲',amount:10000,note:'2025/04存錢'},
-  {date:'2025/4/10',type:'翔',amount:10000,note:'2025/04存錢'},
-  {date:'2025/4/10',type:'贈品',amount:2000,note:'做贈品'},
-  {date:'2025/4/16',type:'投資',amount:-984,note:'元大高股息30股/成交價32.77'},
-  {date:'2025/4/16',type:'投資',amount:-20018,note:'國泰永續高股息1000股/成交價19.9'},
-  {date:'2025/5/1',type:'利息',amount:18,note:''},
-  {date:'2025/5/9',type:'玲',amount:14000,note:'2025/05存錢'},
-  {date:'2025/5/12',type:'投資',amount:-969,note:'元大高股息29股/成交價33.4'},
-  {date:'2025/5/12',type:'投資',amount:-996,note:'國泰永續高股息48股/成交價20.75'},
-  {date:'2025/5/14',type:'股票配息',amount:32,note:'元大高股息配息'},
-  {date:'2025/5/19',type:'翔',amount:14000,note:'2025/05存錢'},
-  {date:'2025/5/19',type:'投資',amount:-20749,note:'國泰永續高股息1000股/成交價20.72'},
-  {date:'2025/5/30',type:'利息',amount:59,note:''},
-  {date:'2025/6/6',type:'贈品',amount:75000,note:'贈品-手機支架、證件套、行李束帶'},
-  {date:'2025/6/10',type:'玲',amount:14000,note:'2025/06存錢'},
-  {date:'2025/6/10',type:'翔',amount:14000,note:'2025/06存錢'},
-  {date:'2025/6/13',type:'股票配息',amount:493,note:'國泰高股息配息0.47*1048股'},
-  {date:'2025/6/30',type:'利息',amount:176,note:''},
-  {date:'2025/7/9',type:'贈品',amount:24000,note:'面紙套'},
-  {date:'2025/7/10',type:'玲',amount:14000,note:'2025/07存錢'},
-  {date:'2025/7/10',type:'翔',amount:14000,note:'2025/07存錢'},
-  {date:'2025/7/15',type:'翔',amount:4400,note:'安可打工的錢'},
-  {date:'2025/7/10',type:'投資',amount:-983,note:'國泰永續高股息47股/成交價20.91'},
-  {date:'2025/7/10',type:'投資',amount:-980,note:'元大高股息28股/成交價34.97'},
-  {date:'2025/8/1',type:'利息',amount:192,note:''},
-  {date:'2025/8/11',type:'股票配息',amount:66,note:'0056元大高股息配息'},
-  {date:'2025/8/11',type:'玲',amount:14000,note:'2025/08存錢'},
-  {date:'2025/8/11',type:'翔',amount:14000,note:'2025/08存錢'},
-  {date:'2025/8/11',type:'投資',amount:-986,note:'元大高股息28股/成交價35.2'},
-  {date:'2025/8/11',type:'投資',amount:-999,note:'國泰永續高股息47股/成交價21.24'},
-  {date:'2025/8/1',type:'利息',amount:279,note:''},
-  {date:'2025/9/10',type:'玲',amount:14000,note:'2025/09存錢'},
-  {date:'2025/9/10',type:'翔',amount:20000,note:'2025/09存錢'},
-  {date:'2025/9/10',type:'投資',amount:-997,note:'國泰永續高股息48股/成交價20.76'},
-  {date:'2025/9/10',type:'投資',amount:-969,note:'元大高股息27股/成交價35.87'},
-  {date:'2025/9/11',type:'股票配息',amount:857,note:'國泰高股息配息0.4*2142股'},
-  {date:'2025/9/24',type:'贈品',amount:84000,note:'手機支架1100個/飲料提帶2000個'},
-  {date:'2025/10/1',type:'利息',amount:343,note:''},
-  {date:'2025/10/10',type:'玲',amount:14000,note:'2025/10存錢'},
-  {date:'2025/10/10',type:'翔',amount:20000,note:'2025/10存錢'},
-  {date:'2025/10/13',type:'投資',amount:-993,note:'國泰永續高股息47股/成交價21.13'},
-  {date:'2025/10/13',type:'投資',amount:-988,note:'元大高股息27股/成交價36.58'},
-  {date:'2025/10/21',type:'贈品',amount:32100,note:'折疊扇2000個'},
-  {date:'2025/10/28',type:'投資',amount:-14520,note:'台積電10股/成交價1450(手續費$20)'},
-  {date:'2025/11/1',type:'利息',amount:483,note:''},
-  {date:'2025/11/10',type:'投資',amount:-982,note:'國泰永續高股息46股/成交價21.34'},
-  {date:'2025/11/10',type:'投資',amount:-988,note:'元大高股息27股/成交價36.56'},
-  {date:'2025/11/14',type:'翔',amount:20000,note:''},
-  {date:'2025/11/14',type:'股票配息',amount:136,note:'元大高股息配息'},
-  {date:'2025/11/28',type:'利息',amount:469,note:''},
-  {date:'2025/12/11',type:'玲',amount:12000,note:''},
-  {date:'2025/12/11',type:'股票配息',amount:913,note:'國泰高股息配息0.4*2283股'},
-  {date:'2025/12/10',type:'投資',amount:-989,note:'元大高股息27股/成交價36.62'},
-  {date:'2025/12/10',type:'投資',amount:-980,note:'國泰永續高股息46股/成交價21.3'},
-  {date:'2025/12/17',type:'投資',amount:-62589,note:'元大0050/成交價62.5/1000股'},
-  {date:'2026/1/20',type:'投資',amount:71477,note:'元大0050/成交價71.65(賺$8888)'},
-  {date:'2025/12/30',type:'利息',amount:450,note:''},
-  {date:'2026/1/13',type:'玲',amount:12000,note:'2026/01存錢'},
-  {date:'2026/1/14',type:'翔',amount:12000,note:'2026/01存錢'},
-  {date:'2026/1/15',type:'贈品',amount:62000,note:'海綿*4000/行李綁帶*2300'},
-  {date:'2026/1/19',type:'贈品',amount:-100000,note:'翔周轉用'},
-  {date:'2026/1/31',type:'利息',amount:471,note:''},
-  {date:'2026/2/9',type:'投資',amount:-72102,note:'元大0050/成交價72.1/1000股'},
-  {date:'2026/2/11',type:'股票配息',amount:183,note:'0056配息'},
-  {date:'2026/2/10',type:'投資',amount:-5982,note:'00878國泰永續高股息/$23.18/258股'},
-  {date:'2026/2/10',type:'投資',amount:-2993,note:'0056元大高股息/$38.36/78股'},
-  {date:'2026/2/10',type:'投資',amount:-2998,note:'0050/$74.68/40股'},
-  {date:'2026/2/14',type:'玲',amount:14000,note:'2026/02存錢'},
-  {date:'2026/2/14',type:'翔',amount:14000,note:'2026/02存錢'},
-  {date:'2026/2/27',type:'利息',amount:436,note:''},
-  {date:'2026/3/10',type:'玲',amount:14000,note:'2026/03存錢'},
-  {date:'2026/3/10',type:'翔',amount:14000,note:'2026/03存錢'},
-  {date:'2026/3/10',type:'投資',amount:-5999,note:'00878國泰永續高股息/$22.3/269股'},
-  {date:'2026/3/10',type:'投資',amount:-2985,note:'0056元大高股息/$38.26/78股'},
-  {date:'2026/3/10',type:'投資',amount:-2977,note:'0050/$76.32/39股'},
-  {date:'2026/3/18',type:'一起',amount:-3000,note:'舞公司名字'},
-  {date:'2026/3/18',type:'贈品',amount:23000,note:'矽藻土杯墊2000個'},
-  {date:'2026/3/23',type:'股票配息',amount:1087,note:'00878配息/每股$0.42'},
-  {date:'2026/4/1',type:'利息',amount:490,note:''},
-  {date:'2026/4/9',type:'股票配息',amount:55,note:'台積電配息'},
-  {date:'2026/4/13',type:'玲',amount:14000,note:'2026/04存錢'},
-  {date:'2026/4/13',type:'翔',amount:12000,note:'2026/04存錢'},
-  {date:'2026/4/30',type:'利息',amount:492,note:''},
-  {date:'2026/5/5',type:'贈品',amount:125582,note:'面紙套/證件套/海綿'},
-];
-
+let savingsData=[], stocksData=[], bizData=[];
 let stocksList=[
   {name:'元大高股息',code:'0056'},
   {name:'國泰永續高股息',code:'00878'},
   {name:'台積電',code:'2330'},
   {name:'元大台灣0050',code:'0050'},
 ];
+let savingsFilter='all', stockFilter='all';
 
-// ── 證券帳戶（完整資料）──
-let stocksData=[
-  {date:'2025/4/16',code:'0056',name:'元大高股息',qty:30,price:32.77,amount:984,note:''},
-  {date:'2025/4/16',code:'00878',name:'國泰永續高股息',qty:1000,price:19.9,amount:20018,note:''},
-  {date:'2025/5/12',code:'0056',name:'元大高股息',qty:29,price:33.4,amount:969,note:''},
-  {date:'2025/5/12',code:'00878',name:'國泰永續高股息',qty:48,price:20.75,amount:996,note:''},
-  {date:'2025/5/19',code:'00878',name:'國泰永續高股息',qty:1000,price:20.72,amount:20749,note:''},
-  {date:'2025/7/10',code:'0056',name:'元大高股息',qty:28,price:34.97,amount:980,note:''},
-  {date:'2025/7/10',code:'00878',name:'國泰永續高股息',qty:47,price:20.91,amount:983,note:''},
-  {date:'2025/8/10',code:'0056',name:'元大高股息',qty:28,price:35.2,amount:986,note:''},
-  {date:'2025/8/10',code:'00878',name:'國泰永續高股息',qty:47,price:21.24,amount:999,note:''},
-  {date:'2025/9/10',code:'0056',name:'元大高股息',qty:27,price:35.87,amount:969,note:''},
-  {date:'2025/9/10',code:'00878',name:'國泰永續高股息',qty:48,price:20.76,amount:997,note:''},
-  {date:'2025/10/13',code:'0056',name:'元大高股息',qty:27,price:36.58,amount:988,note:''},
-  {date:'2025/10/13',code:'00878',name:'國泰永續高股息',qty:47,price:21.13,amount:993,note:''},
-  {date:'2025/10/28',code:'2330',name:'台積電',qty:10,price:1450,amount:14500,note:'手續費$20'},
-  {date:'2025/11/10',code:'0056',name:'元大高股息',qty:27,price:36.56,amount:988,note:''},
-  {date:'2025/11/10',code:'00878',name:'國泰永續高股息',qty:46,price:21.34,amount:982,note:''},
-  {date:'2025/12/10',code:'0056',name:'元大高股息',qty:27,price:36.62,amount:989,note:''},
-  {date:'2025/12/10',code:'00878',name:'國泰永續高股息',qty:46,price:21.3,amount:980,note:''},
-  {date:'2026/2/9',code:'0050',name:'元大台灣0050',qty:1000,price:72,amount:72102,note:''},
-  {date:'2026/2/10',code:'00878',name:'國泰永續高股息',qty:258,price:23.18,amount:5982,note:''},
-  {date:'2026/2/10',code:'0056',name:'元大高股息',qty:78,price:38.36,amount:2993,note:''},
-  {date:'2026/2/10',code:'0050',name:'元大台灣0050',qty:40,price:74.68,amount:2998,note:''},
-  {date:'2026/3/10',code:'00878',name:'國泰永續高股息',qty:269,price:22.3,amount:5999,note:''},
-  {date:'2026/3/10',code:'0056',name:'元大高股息',qty:78,price:38.26,amount:2985,note:''},
-  {date:'2026/3/10',code:'0050',name:'元大台灣0050',qty:39,price:76.32,amount:2977,note:''},
-];
-
-// ── 做贈品金額 ──
-let bizData=[
-  {id:1,date:'2025/1/7',item:'手機氣囊支架',amount:61950,qty:'1000個',profitGroup:1,profit:null},
-  {id:2,date:'2025/3/26',item:'手機氣囊支架',amount:39060,qty:'600個',profitGroup:1,profit:75000},
-  {id:3,date:'2025/6/3',item:'證件套',amount:67200,qty:'1000個',profitGroup:2,profit:null},
-  {id:4,date:'2025/6/3',item:'行李綁帶',amount:63525,qty:'1000個',profitGroup:2,profit:null},
-  {id:5,date:'2025/5/9',item:'皮革面紙套',amount:96075,qty:'1000個',profitGroup:2,profit:24000},
-  {id:6,date:'2025/8/11',item:'摺扇',amount:50925,qty:'4000個',profitGroup:3,profit:32100},
-  {id:7,date:'2025/8/11',item:'GKBB 手機氣囊支架',amount:29820,qty:'450個',profitGroup:null,profit:null,noProfit:true},
-  {id:8,date:'2025/9/1',item:'手機氣囊支架',amount:91140,qty:'1100個',profitGroup:4,profit:null},
-  {id:9,date:'2025/9/1',item:'飲料提袋',amount:152250,qty:'2000個',profitGroup:4,profit:84000},
-  {id:10,date:'2025/10/27',item:'木柵海綿',amount:65100,qty:'4000個',profitGroup:5,profit:62000},
-  {id:11,date:'2025/12/5',item:'行李綁帶',amount:144900,qty:'2300個',profitGroup:6,profit:null},
-  {id:12,date:'2025/11/28',item:'珪藻土杯墊',amount:64050,qty:'2000個',profitGroup:6,profit:23000},
-  {id:13,date:'2026/2/3',item:'皮革面紙套',amount:256620,qty:'2600個',profitGroup:7,profit:null},
-  {id:14,date:'2026/3/6',item:'皮革證件套',amount:88725,qty:'1000個',profitGroup:7,profit:null},
-  {id:15,date:'2026/3/24',item:'木槳海綿',amount:60900,qty:'4000個',profitGroup:7,profit:125582},
-];
-
-let savingsFilter='all',stockFilter='all';
 function ic(cls,fn,e,t){return `<button class="ic ${cls}" onclick="${fn}" title="${t}">${e}</button>`;}
 function d2i(d){return String(d).replace(/\//g,'-');}
 function i2d(d){return d.replace(/-/g,'/');}
 function showToast(msg,isErr=false){const t=document.getElementById('toast');t.textContent=msg;t.style.background=isErr?'#A32D2D':'#2C2C2A';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 function setStatus(msg){document.getElementById('sync-status').textContent=msg;}
-
-async function apiWrite(sheet,data){
-  await fetch(`${API}?action=write&sheet=${encodeURIComponent(sheet)}`,{method:'POST',body:JSON.stringify(data)});
+function setLoading(show,msg='載入中...'){
+  const el=document.getElementById('loading-overlay');
+  el.style.display=show?'flex':'none';
+  if(msg)document.getElementById('loading-text').textContent=msg;
 }
+
+// ── API（用 GET + jsonp-like fetch，避免 CORS）──
+async function apiRead(sheet){
+  const url=`${API}?action=read&sheet=${encodeURIComponent(sheet)}`;
+  const res=await fetch(url);
+  const json=await res.json();
+  if(!json.success)throw new Error(json.error||'讀取失敗');
+  return json.data;
+}
+async function apiWrite(sheet,data){
+  const url=`${API}?action=write&sheet=${encodeURIComponent(sheet)}&data=${encodeURIComponent(JSON.stringify(data))}`;
+  const res=await fetch(url);
+  const json=await res.json();
+  if(!json.success)throw new Error(json.error||'寫入失敗');
+}
+
+// ── 載入所有資料 ──
+async function loadAll(){
+  setLoading(true,'從 Google Sheet 載入資料...');
+  setStatus('');
+  try{
+    const [sav,stk,biz]=await Promise.all([
+      apiRead('活儲帳戶'),
+      apiRead('證券帳戶'),
+      apiRead('做贈品金額'),
+    ]);
+    savingsData=sav.map(r=>({
+      date:String(r['日期']||''),
+      type:String(r['對象']||''),
+      amount:Number(r['金額']||0),
+      note:String(r['備註']||''),
+    })).filter(r=>r.date&&r.type);
+
+    stocksData=stk.map(r=>({
+      date:String(r['日期']||''),
+      name:String(r['股票名稱']||''),
+      code:String(r['股票代號']||''),
+      qty:Number(r['數量']||0),
+      price:Number(r['成交價']||0),
+      amount:Number(r['金額']||0),
+      note:String(r['備註']||''),
+    })).filter(r=>r.date&&r.name);
+
+    bizData=biz.map((r,i)=>({
+      id:i+1,
+      date:String(r['日期']||''),
+      item:String(r['品項']||''),
+      amount:Number(r['金額']||0),
+      qty:String(r['數量']||''),
+      profitGroup:r['利潤群組']!==''&&r['利潤群組']!=null&&String(r['利潤群組']).trim()!=='-'&&String(r['利潤群組']).trim()!==''?Number(r['利潤群組']):null,
+      profit:r['利潤']!==''&&r['利潤']!=null&&String(r['利潤']).trim()!==''?Number(r['利潤']):null,
+      noProfit:String(r['利潤群組']||'').trim()==='-',
+    })).filter(r=>r.date&&r.item);
+
+    calcSavingsSummary();renderSavings();
+    calcStockHoldings();renderStocks();
+    renderBiz();
+    setStatus('已同步 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}));
+    showToast('資料已載入 ✓');
+  }catch(e){
+    console.error(e);
+    showToast('載入失敗：'+e.message,true);
+    setStatus('載入失敗，請重試');
+  }
+  setLoading(false);
+}
+
 async function saveSheet(sheet,data){
   setStatus('儲存中...');
-  try{await apiWrite(sheet,data);setStatus('已同步 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}));showToast('已儲存 ✓');}
-  catch(e){showToast('儲存失敗',true);setStatus('');}
-}
-async function pushAllToSheet(){
-  setStatus('同步中...');
   try{
-    await Promise.all([apiWrite('活儲帳戶',savingsToRows()),apiWrite('證券帳戶',stocksToRows()),apiWrite('做贈品金額',bizToRows())]);
-    setStatus('已同步 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}));showToast('全部資料已同步到 Google Sheet ✓');
-  }catch(e){showToast('同步失敗',true);setStatus('');}
+    await apiWrite(sheet,data);
+    setStatus('已同步 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}));
+    showToast('已儲存 ✓');
+  }catch(e){
+    showToast('儲存失敗：'+e.message,true);
+    setStatus('儲存失敗');
+  }
 }
 
+// ── Savings ──
 function savingsToRows(){return savingsData.map(r=>({'日期':r.date,'對象':r.type,'金額':r.amount,'備註':r.note}));}
 function calcSavingsSummary(){
   const t={玲:0,翔:0,贈品:0,投資:0,利息:0,股票配息:0,一起:0};
@@ -440,6 +385,7 @@ async function saveSavingsRecord(idx){
   await saveSheet('活儲帳戶',savingsToRows());
 }
 
+// ── Stocks ──
 function stocksToRows(){return stocksData.map(r=>({'日期':r.date,'股票名稱':r.name,'股票代號':r.code,'數量':r.qty,'成交價':r.price,'金額':r.amount,'備註':r.note}));}
 function calcStockHoldings(){
   const map={};
@@ -448,8 +394,7 @@ function calcStockHoldings(){
   const sorted=order.map(c=>map[c]).filter(Boolean);
   Object.values(map).forEach(v=>{if(!order.includes(v.code))sorted.push(v);});
   document.getElementById('stock-holdings').innerHTML=sorted.map(s=>`<div class="stock-sum-card"><div class="stock-sum-name">${s.name}</div><div class="stock-sum-code">${s.code}</div><div class="stock-sum-row"><div><span class="stock-sum-shares">${s.shares.toLocaleString()}</span> <span class="stock-sum-unit">股</span></div><div class="stock-sum-cost">-NT$${s.cost.toLocaleString()}</div></div></div>`).join('');
-  const total=stocksData.reduce((a,r)=>a+r.amount,0);
-  document.getElementById('st-total').textContent='-NT$'+total.toLocaleString();
+  document.getElementById('st-total').textContent='-NT$'+stocksData.reduce((a,r)=>a+r.amount,0).toLocaleString();
   document.getElementById('st-count').textContent=stocksData.length+' 筆';
 }
 function renderStocks(){
@@ -503,6 +448,7 @@ function addStockItem(){const name=document.getElementById('ns-name').value.trim
 function deleteStockItem(i){stocksList.splice(i,1);renderManageBody();}
 function editStockItem(i){const s=stocksList.splice(i,1)[0];renderManageBody();document.getElementById('ns-name').value=s.name;document.getElementById('ns-code').value=s.code;}
 
+// ── Biz ──
 function bizToRows(){return bizData.map(r=>({'日期':r.date,'品項':r.item,'金額':r.amount,'數量':r.qty,'利潤群組':r.noProfit?'-':(r.profitGroup??''),'利潤':r.profit??''}));}
 function buildGroupMap(data){
   const gm={};
@@ -590,7 +536,7 @@ function switchTab(name){
   document.getElementById('tab-'+name).classList.add('active');
 }
 document.getElementById('today-date').textContent=new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'});
-calcSavingsSummary();renderSavings();calcStockHoldings();renderStocks();renderBiz();
+loadAll();
 </script>
 </body>
 </html>
