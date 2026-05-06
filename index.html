@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Waly & Ken 共同帳本</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --pink:#E4567A;--pink-light:#FBEAF0;
+  --teal:#1D9E75;--teal-light:#E1F5EE;
+  --blue:#185FA5;--blue-light:#E6F1FB;
+  --red:#A32D2D;--red-light:#FCEBEB;
+  --gray:#5F5E5A;--gray-light:#F1EFE8;
+  --bg:#FDF9F7;--card:#fff;--border:#E8E0DC;
+  --text:#2C2C2A;--muted:#888780;
+}
+body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.header{background:var(--card);border-bottom:1px solid var(--border);padding:1.25rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.header-left{display:flex;align-items:center;gap:12px}
+.logo{width:36px;height:36px;background:var(--pink);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;flex-shrink:0}
+.site-name{font-size:18px;font-weight:700}
+.header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.date-badge{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);background:var(--gray-light);padding:4px 10px;border-radius:20px}
+.sync-btn{font-size:12px;padding:4px 12px;border-radius:20px;border:1px solid var(--teal);background:var(--teal-light);color:var(--teal);cursor:pointer;font-family:'Noto Sans TC',sans-serif;font-weight:500;transition:all .15s}
+.sync-btn:hover{background:var(--teal);color:#fff}
+.sync-status{font-size:11px;color:var(--muted)}
+.tabs{background:var(--card);border-bottom:1px solid var(--border);display:flex;padding:0 1.5rem;overflow-x:auto}
+.tab{padding:0.875rem 1.25rem;font-size:14px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2.5px solid transparent;transition:all .2s;white-space:nowrap}
+.tab.active{color:var(--pink);border-bottom-color:var(--pink)}
+.tab:hover:not(.active){color:var(--text)}
+.content{padding:1.5rem;max-width:960px;margin:0 auto}
+.section{display:none}.section.active{display:block}
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:1rem}
+.sum-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:0.875rem 1rem}
+.sum-label{font-size:11px;color:var(--muted);margin-bottom:5px}
+.sum-value{font-family:'DM Mono',monospace;font-size:18px;font-weight:500}
+.sum-value.positive{color:var(--teal)}.sum-value.negative{color:var(--red)}.sum-value.highlight{color:var(--pink)}
+.breakdown-strip{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:0.75rem 1rem;margin-bottom:1.25rem;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.bd-item{display:flex;align-items:center;gap:5px}
+.bd-label{font-size:11px;color:var(--muted)}
+.bd-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:500}
+.bd-val.ling{color:#D4537E}.bd-val.xiang{color:#185FA5}.bd-val.gift{color:#BA7517}
+.bd-val.invest{color:#0F6E56}.bd-val.interest{color:#3B6D11}.bd-val.dividend{color:#534AB7}
+.sep{color:var(--border);font-size:13px}
+.stock-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:10px;margin-bottom:1rem}
+.stock-sum-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:0.75rem 1rem}
+.stock-sum-name{font-size:12px;font-weight:500;margin-bottom:2px}
+.stock-sum-code{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)}
+.stock-sum-row{display:flex;justify-content:space-between;margin-top:6px;align-items:baseline}
+.stock-sum-shares{font-family:'DM Mono',monospace;font-size:16px;font-weight:500;color:var(--blue)}
+.stock-sum-unit{font-size:11px;color:var(--muted)}
+.stock-sum-cost{font-family:'DM Mono',monospace;font-size:12px;color:var(--red)}
+.table-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.table-header{padding:0.875rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.table-title{font-size:14px;font-weight:500}
+.filter-row{display:flex;gap:6px;flex-wrap:wrap}
+.filter-btn{font-size:12px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;transition:all .15s;font-family:'Noto Sans TC',sans-serif}
+.filter-btn.active{border-color:var(--pink);background:var(--pink-light);color:var(--pink)}
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;color:var(--muted);font-weight:500;padding:0.5rem 0.875rem;text-align:left;background:var(--gray-light);border-bottom:1px solid var(--border)}
+td{font-size:13px;padding:0.45rem 0.875rem;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#FFF7F9}
+.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:500}
+.badge-玲{background:#FBEAF0;color:#D4537E}.badge-翔{background:#E6F1FB;color:#185FA5}
+.badge-贈品{background:#FAEEDA;color:#BA7517}.badge-投資{background:#E1F5EE;color:#0F6E56}
+.badge-利息{background:#EAF3DE;color:#3B6D11}.badge-股票配息{background:#EEEDFE;color:#534AB7}
+.mono{font-family:'DM Mono',monospace}
+.amount-pos{color:var(--teal);font-family:'DM Mono',monospace}
+.amount-neg{color:var(--red);font-family:'DM Mono',monospace}
+.ic{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;border:none;background:transparent;cursor:pointer;font-size:14px;line-height:1;transition:background .12s;padding:0}
+.ic:hover.pencil{background:var(--blue-light)}
+.ic:hover.cross{background:var(--red-light)}
+.actions-cell{display:flex;align-items:center;gap:2px}
+.add-btn{font-size:12px;padding:5px 12px;border-radius:8px;border:1px solid var(--pink);background:var(--pink-light);color:var(--pink);cursor:pointer;font-family:'Noto Sans TC',sans-serif;font-weight:500;transition:all .15s}
+.add-btn:hover{background:var(--pink);color:#fff}
+.search-input{padding:5px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:'Noto Sans TC',sans-serif;width:140px;outline:none}
+.search-input:focus{border-color:var(--pink)}
+.stock-name-cell{font-weight:500;font-size:13px}
+.stock-code-cell{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace}
+.profit-pill{display:inline-block;font-size:11px;padding:2px 8px;background:#E1F5EE;color:#0F6E56;border-radius:20px;font-weight:500;cursor:pointer}
+.profit-pill:hover{background:#9FE1CB}
+.profit-dash{font-size:12px;color:var(--muted);cursor:pointer;border-bottom:1px dashed var(--muted)}
+.profit-dash:hover{color:var(--teal);border-color:var(--teal)}
+.profit-total-row td{background:#F0FAF6;border-top:1px solid #9FE1CB}
+.loading-overlay{position:fixed;inset:0;background:rgba(253,249,247,0.9);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+.loading-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--pink);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:13px;color:var(--muted)}
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--text);color:#fff;font-size:13px;padding:10px 16px;border-radius:10px;z-index:300;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:16px;padding:1.5rem;width:min(460px,92vw);max-height:90vh;overflow-y:auto}
+.modal h3{font-size:15px;font-weight:700;margin-bottom:1.25rem}
+.form-row{margin-bottom:0.75rem}
+.form-row label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
+.form-row input,.form-row select{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans TC',sans-serif;color:var(--text);background:#fff;outline:none}
+.form-row input:focus,.form-row select:focus{border-color:var(--pink)}
+.form-row input[readonly]{background:#f7f5f3;color:var(--muted)}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:1rem}
+.btn-cancel{padding:6px 14px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--muted);cursor:pointer;font-family:'Noto Sans TC',sans-serif;font-size:13px}
+.btn-save{padding:6px 14px;border:1px solid var(--pink);border-radius:8px;background:var(--pink);color:#fff;cursor:pointer;font-family:'Noto Sans TC',sans-serif;font-size:13px;font-weight:500}
+.btn-del-ok{padding:6px 14px;border:1px solid var(--red);border-radius:8px;background:var(--red);color:#fff;cursor:pointer;font-family:'Noto Sans TC',sans-serif;font-size:13px;font-weight:500}
+.stock-list-item{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
+.stock-list-item:last-child{border-bottom:none}
+.divider{border:none;border-top:1px solid var(--border);margin:0.875rem 0}
+</style>
+</head>
+<body>
+
+<div id="loading-overlay" class="loading-overlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">從 Google Sheet 載入資料中...</div>
+</div>
+<div id="toast" class="toast"></div>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">W&K</div>
+    <div class="site-name">Waly & Ken 共同帳本</div>
+  </div>
+  <div class="header-right">
+    <span class="sync-status" id="sync-status"></span>
+    <button class="sync-btn" onclick="loadAll()">↻ 重新載入</button>
+    <div class="date-badge" id="today-date"></div>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('savings')">💰 活儲帳戶</div>
+  <div class="tab" onclick="switchTab('stocks')">📈 證券帳戶</div>
+  <div class="tab" onclick="switchTab('biz')">🎁 做贈品收入</div>
+</div>
+
+<!-- 活儲 -->
+<div id="tab-savings" class="section active">
+  <div class="content">
+    <div class="summary-grid">
+      <div class="sum-card"><div class="sum-label">活儲帳戶餘額</div><div class="sum-value highlight" id="s-balance">—</div></div>
+      <div class="sum-card"><div class="sum-label">存錢總額</div><div class="sum-value positive" id="s-total">—</div></div>
+      <div class="sum-card"><div class="sum-label">累計投資支出</div><div class="sum-value negative" id="s-invest">—</div></div>
+      <div class="sum-card"><div class="sum-label">利息＋配息</div><div class="sum-value positive" id="s-interest">—</div></div>
+    </div>
+    <div class="breakdown-strip" id="savings-breakdown"></div>
+    <div class="table-wrap">
+      <div class="table-header">
+        <div class="table-title">收支明細</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <input class="search-input" id="savings-search" placeholder="搜尋備註..." oninput="renderSavings()">
+          <div class="filter-row" id="savings-filters">
+            <button class="filter-btn active" onclick="setSavingsFilter(this,'all')">全部</button>
+            <button class="filter-btn" onclick="setSavingsFilter(this,'玲')">玲</button>
+            <button class="filter-btn" onclick="setSavingsFilter(this,'翔')">翔</button>
+            <button class="filter-btn" onclick="setSavingsFilter(this,'投資')">投資</button>
+            <button class="filter-btn" onclick="setSavingsFilter(this,'利息')">利息</button>
+            <button class="filter-btn" onclick="setSavingsFilter(this,'股票配息')">配息</button>
+            <button class="filter-btn" onclick="setSavingsFilter(this,'贈品')">贈品</button>
+          </div>
+          <button class="add-btn" onclick="openSavingsModal(-1)">+ 新增</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table><thead><tr><th>日期</th><th>對象</th><th>金額</th><th>備註</th><th style="width:60px"></th></tr></thead>
+        <tbody id="savings-tbody"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 證券 -->
+<div id="tab-stocks" class="section">
+  <div class="content">
+    <div class="summary-grid">
+      <div class="sum-card"><div class="sum-label">證券帳戶餘額</div><div class="sum-value highlight" id="st-balance">—</div></div>
+      <div class="sum-card"><div class="sum-label">總投入金額</div><div class="sum-value negative" id="st-total">—</div></div>
+      <div class="sum-card"><div class="sum-label">交易筆數</div><div class="sum-value" id="st-count">—</div></div>
+    </div>
+    <div class="stock-summary-grid" id="stock-holdings"></div>
+    <div class="table-wrap">
+      <div class="table-header">
+        <div class="table-title">買股紀錄</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <div class="filter-row" id="stock-filters">
+            <button class="filter-btn active" onclick="setStockFilter(this,'all')">全部</button>
+            <button class="filter-btn" onclick="setStockFilter(this,'0056')">0056</button>
+            <button class="filter-btn" onclick="setStockFilter(this,'00878')">00878</button>
+            <button class="filter-btn" onclick="setStockFilter(this,'0050')">0050</button>
+            <button class="filter-btn" onclick="setStockFilter(this,'2330')">台積電</button>
+          </div>
+          <button class="add-btn" onclick="openManageStocks()">管理股票</button>
+          <button class="add-btn" onclick="openStockModal(-1)">+ 新增</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table><thead><tr><th>日期</th><th>股票</th><th>數量</th><th>成交價</th><th>金額</th><th>備註</th><th style="width:60px"></th></tr></thead>
+        <tbody id="stocks-tbody"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 做贈品 -->
+<div id="tab-biz" class="section">
+  <div class="content">
+    <div class="summary-grid">
+      <div class="sum-card"><div class="sum-label">總營業額</div><div class="sum-value highlight" id="biz-revenue">—</div></div>
+      <div class="sum-card"><div class="sum-label">已記錄利潤</div><div class="sum-value positive" id="biz-profit">—</div></div>
+      <div class="sum-card"><div class="sum-label">訂單筆數</div><div class="sum-value" id="biz-count">—</div></div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header">
+        <div class="table-title">銷售紀錄</div>
+        <button class="add-btn" onclick="openBizModal(-1)">+ 新增</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table><thead><tr><th>日期</th><th>品項</th><th>金額</th><th>數量</th><th>利潤</th><th style="width:60px"></th></tr></thead>
+        <tbody id="biz-tbody"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="handleOverlayClick(event)">
+  <div class="modal">
+    <h3 id="modal-title"></h3>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbwIEy7UIXpq1RTYJZHdvvGpOXiwaskxYU8HR8VSduPK4bLAwUF8WrHhWcYIhJ2KviMMvw/exec';
+
+let savingsData=[], stocksData=[], bizData=[];
+let stocksList=[
+  {name:'元大高股息',code:'0056'},
+  {name:'國泰永續高股息',code:'00878'},
+  {name:'台積電',code:'2330'},
+  {name:'元大台灣0050',code:'0050'},
+];
+let savingsFilter='all', stockFilter='all';
+
+function ic(cls,fn,emoji,tip){
+  return `<button class="ic ${cls}" onclick="${fn}" title="${tip}">${emoji}</button>`;
+}
+function d2i(d){return String(d).replace(/\//g,'-');}
+function i2d(d){return d.replace(/-/g,'/');}
+function showToast(msg,isErr=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.background=isErr?'#A32D2D':'#2C2C2A';
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+function setStatus(msg){document.getElementById('sync-status').textContent=msg;}
+
+async function apiRead(sheet){
+  const res=await fetch(`${API}?action=read&sheet=${encodeURIComponent(sheet)}`);
+  const json=await res.json();
+  if(!json.success)throw new Error(json.error);
+  return json.data;
+}
+async function apiWrite(sheet,data){
+  const res=await fetch(`${API}?action=write&sheet=${encodeURIComponent(sheet)}`,{
+    method:'POST',
+    body:JSON.stringify(data),
+  });
+  const json=await res.json();
+  if(!json.success)throw new Error(json.error);
+}
+
+async function loadAll(){
+  document.getElementById('loading-overlay').style.display='flex';
+  setStatus('');
+  try{
+    const [sav,stk,biz]=await Promise.all([
+      apiRead('活儲帳戶'),
+      apiRead('證券帳戶'),
+      apiRead('做贈品金額'),
+    ]);
+    savingsData=sav.map(r=>({
+      date:String(r['日期']||''),
+      type:String(r['對象']||''),
+      amount:Number(r['金額']||0),
+      note:String(r['備註']||''),
+    }));
+    stocksData=stk.map(r=>({
+      date:String(r['日期']||''),
+      name:String(r['股票名稱']||''),
+      code:String(r['股票代號']||''),
+      qty:Number(r['數量']||0),
+      price:Number(r['成交價']||0),
+      amount:Number(r['金額']||0),
+      note:String(r['備註']||''),
+    }));
+    bizData=biz.map((r,i)=>({
+      id:i+1,
+      date:String(r['日期']||''),
+      item:String(r['品項']||''),
+      amount:Number(r['金額']||0),
+      qty:String(r['數量']||''),
+      profitGroup:r['利潤群組']!==''&&r['利潤群組']!=null&&r['利潤群組']!=='-'?Number(r['利潤群組']):null,
+      profit:r['利潤']!==''&&r['利潤']!=null?Number(r['利潤']):null,
+      noProfit:String(r['利潤群組']||'').trim()==='-',
+    }));
+    calcSavingsSummary();renderSavings();
+    calcStockHoldings();renderStocks();
+    renderBiz();
+    setStatus('已同步 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}));
+    showToast('資料已載入 ✓');
+  }catch(e){
+    showToast('載入失敗：'+e.message,true);
+    setStatus('載入失敗');
+    console.error(e);
+  }
+  document.getElementById('loading-overlay').style.display='none';
+}
+
+async function saveSheet(sheet,data){
+  setStatus('儲存中...');
+  try{
+    await apiWrite(sheet,data);
+    setStatus('已同步 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}));
+    showToast('已儲存至 Google Sheet ✓');
+  }catch(e){
+    showToast('儲存失敗：'+e.message,true);
+    setStatus('儲存失敗');
+  }
+}
+
+// ── Savings ──
+function savingsToRows(){return savingsData.map(r=>({'日期':r.date,'對象':r.type,'金額':r.amount,'備註':r.note}));}
+function calcSavingsSummary(){
+  const t={玲:0,翔:0,贈品:0,投資:0,利息:0,股票配息:0};
+  savingsData.forEach(r=>{if(t[r.type]!==undefined)t[r.type]+=r.amount;});
+  const bal=savingsData.reduce((a,r)=>a+r.amount,0);
+  document.getElementById('s-balance').textContent='NT$'+bal.toLocaleString();
+  document.getElementById('s-total').textContent='NT$'+(t['玲']+t['翔']).toLocaleString();
+  document.getElementById('s-invest').textContent='-NT$'+Math.abs(t['投資']).toLocaleString();
+  document.getElementById('s-interest').textContent='+NT$'+(t['利息']+t['股票配息']).toLocaleString();
+  const items=[
+    {label:'玲',val:t['玲'],cls:'ling'},{label:'翔',val:t['翔'],cls:'xiang'},
+    {label:'贈品',val:t['贈品'],cls:'gift'},{label:'投資',val:t['投資'],cls:'invest'},
+    {label:'利息',val:t['利息'],cls:'interest'},{label:'配息',val:t['股票配息'],cls:'dividend'},
+  ];
+  document.getElementById('savings-breakdown').innerHTML=
+    `<span style="font-size:11px;color:var(--muted);font-weight:500;margin-right:4px">分類加總</span>`+
+    items.map((it,i)=>`${i?'<span class="sep">·</span>':''}<div class="bd-item"><span class="bd-label">${it.label}</span><span class="bd-val ${it.cls}">${it.val>=0?'+':''}${it.val.toLocaleString()}</span></div>`).join('');
+}
+function renderSavings(){
+  const q=(document.getElementById('savings-search').value||'').toLowerCase();
+  const rows=savingsData.map((r,i)=>({...r,_i:i})).filter(r=>{
+    if(savingsFilter!=='all'&&r.type!==savingsFilter)return false;
+    if(q&&!r.note.toLowerCase().includes(q)&&!r.type.includes(q))return false;
+    return true;
+  });
+  document.getElementById('savings-tbody').innerHTML=rows.map(r=>`<tr>
+    <td class="mono" style="font-size:12px">${r.date}</td>
+    <td><span class="badge badge-${r.type}">${r.type}</span></td>
+    <td class="${r.amount>=0?'amount-pos':'amount-neg'}">${r.amount>=0?'+':''}${r.amount.toLocaleString()}</td>
+    <td style="color:var(--muted);font-size:12px">${r.note}</td>
+    <td><div class="actions-cell">${ic('pencil',`openSavingsModal(${r._i})`,'✏️','編輯')}${ic('cross',`confirmDel('savings',${r._i})`,'✕','刪除')}</div></td>
+  </tr>`).join('');
+}
+function setSavingsFilter(btn,val){
+  document.querySelectorAll('#savings-filters .filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');savingsFilter=val;renderSavings();
+}
+function openSavingsModal(idx){
+  const r=idx>=0?savingsData[idx]:{date:'',type:'玲',amount:'',note:''};
+  document.getElementById('modal-title').textContent=idx>=0?'編輯記錄':'新增活儲記錄';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-row"><label>日期</label><input type="date" id="f-date" value="${r.date?d2i(r.date):''}"></div>
+    <div class="form-row"><label>對象</label><select id="f-type">${['玲','翔','投資','利息','股票配息','贈品'].map(t=>`<option${r.type===t?' selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="form-row"><label>金額（支出填負數）</label><input type="number" id="f-amount" value="${r.amount}"></div>
+    <div class="form-row"><label>備註</label><input type="text" id="f-note" value="${r.note}"></div>
+    <div class="form-actions"><button class="btn-cancel" onclick="closeModal()">取消</button><button class="btn-save" onclick="saveSavingsRecord(${idx})">儲存</button></div>`;
+  openModal();
+}
+async function saveSavingsRecord(idx){
+  const d={date:i2d(document.getElementById('f-date').value),type:document.getElementById('f-type').value,amount:+document.getElementById('f-amount').value,note:document.getElementById('f-note').value};
+  if(!d.date||!d.amount){alert('請填寫日期和金額');return;}
+  if(idx>=0)savingsData[idx]=d; else savingsData.push(d);
+  calcSavingsSummary();renderSavings();closeModal();
+  await saveSheet('活儲帳戶',savingsToRows());
+}
+
+// ── Stocks ──
+function stocksToRows(){return stocksData.map(r=>({'日期':r.date,'股票名稱':r.name,'股票代號':r.code,'數量':r.qty,'成交價':r.price,'金額':r.amount,'備註':r.note}));}
+function calcStockHoldings(){
+  const map={};
+  stocksData.forEach(r=>{
+    if(!map[r.code])map[r.code]={name:r.name,code:r.code,shares:0,cost:0};
+    map[r.code].shares+=r.qty;map[r.code].cost+=r.amount;
+  });
+  const order=stocksList.map(s=>s.code);
+  const sorted=order.map(c=>map[c]).filter(Boolean);
+  Object.values(map).forEach(v=>{if(!order.includes(v.code))sorted.push(v);});
+  document.getElementById('stock-holdings').innerHTML=sorted.map(s=>`
+    <div class="stock-sum-card">
+      <div class="stock-sum-name">${s.name}</div><div class="stock-sum-code">${s.code}</div>
+      <div class="stock-sum-row"><div><span class="stock-sum-shares">${s.shares.toLocaleString()}</span> <span class="stock-sum-unit">股</span></div>
+      <div class="stock-sum-cost">-NT$${s.cost.toLocaleString()}</div></div>
+    </div>`).join('');
+  const total=stocksData.reduce((a,r)=>a+r.amount,0);
+  document.getElementById('st-balance').textContent='NT$'+total.toLocaleString();
+  document.getElementById('st-total').textContent='-NT$'+total.toLocaleString();
+  document.getElementById('st-count').textContent=stocksData.length+' 筆';
+}
+function renderStocks(){
+  const rows=stocksData.map((r,i)=>({...r,_i:i})).filter(r=>stockFilter==='all'||r.code===stockFilter||r.name.includes(stockFilter));
+  document.getElementById('stocks-tbody').innerHTML=rows.map(r=>`<tr>
+    <td class="mono" style="font-size:12px">${r.date}</td>
+    <td><div class="stock-name-cell">${r.name}</div><div class="stock-code-cell">${r.code}</div></td>
+    <td class="mono">${r.qty.toLocaleString()}</td>
+    <td class="mono">$${r.price.toLocaleString()}</td>
+    <td class="amount-neg">-${r.amount.toLocaleString()}</td>
+    <td style="font-size:12px;color:var(--muted)">${r.note||'—'}</td>
+    <td><div class="actions-cell">${ic('pencil',`openStockModal(${r._i})`,'✏️','編輯')}${ic('cross',`confirmDel('stocks',${r._i})`,'✕','刪除')}</div></td>
+  </tr>`).join('');
+}
+function setStockFilter(btn,val){
+  document.querySelectorAll('#stock-filters .filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');stockFilter=val;renderStocks();
+}
+function openStockModal(idx){
+  const r=idx>=0?stocksData[idx]:{date:'',name:stocksList[0]?.name||'',code:stocksList[0]?.code||'',qty:'',price:'',amount:'',note:''};
+  document.getElementById('modal-title').textContent=idx>=0?'編輯買股記錄':'新增買股記錄';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-row"><label>日期</label><input type="date" id="f-date" value="${r.date?d2i(r.date):''}"></div>
+    <div class="form-row"><label>股票名稱</label>
+      <select id="f-name" onchange="stockNameChange()">
+        ${stocksList.map(s=>`<option value="${s.name}"${r.name===s.name?' selected':''}>${s.name}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-row"><label>股票代號（自動帶入）</label><input type="text" id="f-code" value="${r.code}" readonly></div>
+    <div class="form-row"><label>數量（股）</label><input type="number" id="f-qty" value="${r.qty}"></div>
+    <div class="form-row"><label>成交價</label><input type="number" id="f-price" step="0.01" value="${r.price}"></div>
+    <div class="form-row"><label>總金額</label><input type="number" id="f-amount" value="${r.amount}"></div>
+    <div class="form-row"><label>備註</label><input type="text" id="f-note" value="${r.note||''}"></div>
+    <div class="form-actions"><button class="btn-cancel" onclick="closeModal()">取消</button><button class="btn-save" onclick="saveStockRecord(${idx})">儲存</button></div>`;
+  openModal();
+}
+function stockNameChange(){
+  const s=stocksList.find(s=>s.name===document.getElementById('f-name').value);
+  if(s)document.getElementById('f-code').value=s.code;
+}
+async function saveStockRecord(idx){
+  const d={date:i2d(document.getElementById('f-date').value),name:document.getElementById('f-name').value,code:document.getElementById('f-code').value,qty:+document.getElementById('f-qty').value,price:+document.getElementById('f-price').value,amount:+document.getElementById('f-amount').value,note:document.getElementById('f-note').value};
+  if(!d.date||!d.name){alert('請填寫日期');return;}
+  if(idx>=0)stocksData[idx]=d; else stocksData.push(d);
+  calcStockHoldings();renderStocks();closeModal();
+  await saveSheet('證券帳戶',stocksToRows());
+}
+function openManageStocks(){
+  document.getElementById('modal-title').textContent='管理股票清單';
+  renderManageBody();openModal();
+}
+function renderManageBody(){
+  document.getElementById('modal-body').innerHTML=`
+    <div style="max-height:220px;overflow-y:auto;margin-bottom:0.75rem">
+      ${stocksList.length===0?'<p style="font-size:12px;color:var(--muted);padding:8px 0">尚無股票</p>':
+        stocksList.map((s,i)=>`<div class="stock-list-item">
+          <span>${s.name} <span class="mono" style="font-size:11px;color:var(--muted)">${s.code}</span></span>
+          <div class="actions-cell">${ic('pencil',`editStockItem(${i})`,'✏️','編輯')}${ic('cross',`deleteStockItem(${i})`,'✕','刪除')}</div>
+        </div>`).join('')}
+    </div>
+    <hr class="divider">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:500">新增股票</div>
+    <div style="display:grid;grid-template-columns:1fr 90px;gap:8px;margin-bottom:8px">
+      <input type="text" id="ns-name" placeholder="股票名稱" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans TC',sans-serif;outline:none">
+      <input type="text" id="ns-code" placeholder="代號" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'DM Mono',monospace;outline:none">
+    </div>
+    <div class="form-actions"><button class="btn-cancel" onclick="closeModal()">關閉</button><button class="btn-save" onclick="addStockItem()">新增</button></div>`;
+}
+function addStockItem(){
+  const name=document.getElementById('ns-name').value.trim();
+  const code=document.getElementById('ns-code').value.trim();
+  if(!name||!code){alert('請填寫名稱和代號');return;}
+  stocksList.push({name,code});renderManageBody();
+}
+function deleteStockItem(i){stocksList.splice(i,1);renderManageBody();}
+function editStockItem(i){const s=stocksList.splice(i,1)[0];renderManageBody();document.getElementById('ns-name').value=s.name;document.getElementById('ns-code').value=s.code;}
+
+// ── Biz ──
+function bizToRows(){return bizData.map(r=>({'日期':r.date,'品項':r.item,'金額':r.amount,'數量':r.qty,'利潤群組':r.noProfit?'-':(r.profitGroup??''),'利潤':r.profit??''}));}
+function buildGroupMap(data){
+  const gm={};
+  data.forEach(r=>{
+    if(r.profitGroup!=null){
+      if(!gm[r.profitGroup])gm[r.profitGroup]={rows:[],profit:null,totalAmt:0};
+      gm[r.profitGroup].rows.push(r);
+      gm[r.profitGroup].totalAmt+=r.amount;
+      if(r.profit!=null)gm[r.profitGroup].profit=r.profit;
+    }
+  });
+  return gm;
+}
+function renderBiz(){
+  const gm=buildGroupMap(bizData);
+  let html='';const done=new Set();
+  bizData.forEach(r=>{
+    if(r.profitGroup!=null){
+      const g=gm[r.profitGroup];
+      if(!done.has(r.profitGroup)){
+        done.add(r.profitGroup);
+        g.rows.forEach(gr=>{
+          html+=`<tr>
+            <td class="mono" style="font-size:12px">${gr.date}</td>
+            <td style="font-size:13px">${gr.item}</td>
+            <td class="amount-pos mono">+${gr.amount.toLocaleString()}</td>
+            <td style="font-size:12px;color:var(--muted)">${gr.qty}</td>
+            <td></td>
+            <td><div class="actions-cell">${ic('pencil',`openBizModal(${gr.id})`,'✏️','編輯')}${ic('cross',`confirmDel('biz',${gr.id})`,'✕','刪除')}</div></td>
+          </tr>`;
+        });
+        const pg=r.profitGroup;const hp=g.profit!=null;
+        html+=`<tr class="profit-total-row">
+          <td colspan="2" style="font-size:12px;color:var(--teal);padding-left:1.25rem">↳ 以上合計利潤</td>
+          <td class="mono" style="font-size:12px;color:var(--teal)">+${g.totalAmt.toLocaleString()}</td>
+          <td></td>
+          <td>${hp?`<span class="profit-pill" onclick="openProfitModal(${pg})" title="點擊修改">+${g.profit.toLocaleString()}</span>`:`<span class="profit-dash" onclick="openProfitModal(${pg})">補登利潤</span>`}</td>
+          <td></td>
+        </tr>`;
+      }
+    } else {
+      const rid=r.id;const hp=r.profit!=null;const np=r.noProfit;
+      html+=`<tr>
+        <td class="mono" style="font-size:12px">${r.date}</td>
+        <td style="font-size:13px">${r.item}</td>
+        <td class="amount-pos mono">+${r.amount.toLocaleString()}</td>
+        <td style="font-size:12px;color:var(--muted)">${r.qty}</td>
+        <td>${np?`<span style="font-size:11px;color:var(--muted)">—</span>`:hp?`<span class="profit-pill" onclick="openSoloProfitModal(${rid})" title="點擊修改">+${r.profit.toLocaleString()}</span>`:`<span class="profit-dash" onclick="openSoloProfitModal(${rid})">補登利潤</span>`}</td>
+        <td><div class="actions-cell">${ic('pencil',`openBizModal(${rid})`,'✏️','編輯')}${ic('cross',`confirmDel('biz',${rid})`,'✕','刪除')}</div></td>
+      </tr>`;
+    }
+  });
+  document.getElementById('biz-tbody').innerHTML=html;
+  const totalRev=bizData.reduce((a,r)=>a+r.amount,0);
+  const totalProfit=Object.values(gm).reduce((a,g)=>a+(g.profit||0),0)
+    +bizData.filter(r=>r.profitGroup==null&&r.profit!=null).reduce((a,r)=>a+r.profit,0);
+  document.getElementById('biz-revenue').textContent='NT$'+totalRev.toLocaleString();
+  document.getElementById('biz-profit').textContent='NT$'+totalProfit.toLocaleString();
+  document.getElementById('biz-count').textContent=bizData.length+' 筆';
+}
+function openBizModal(id){
+  const idx=bizData.findIndex(r=>r.id===id);
+  const r=idx>=0?bizData[idx]:{date:'',item:'',amount:'',qty:''};
+  document.getElementById('modal-title').textContent=id===-1?'新增銷售記錄':'編輯銷售記錄';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-row"><label>日期</label><input type="date" id="f-date" value="${r.date?d2i(r.date):''}"></div>
+    <div class="form-row"><label>品項</label><input type="text" id="f-item" value="${r.item||''}"></div>
+    <div class="form-row"><label>金額</label><input type="number" id="f-amount" value="${r.amount||''}"></div>
+    <div class="form-row"><label>數量</label><input type="text" id="f-qty" value="${r.qty||''}" placeholder="1000個"></div>
+    <div class="form-actions"><button class="btn-cancel" onclick="closeModal()">取消</button><button class="btn-save" onclick="saveBizRecord(${idx},${id})">儲存</button></div>`;
+  openModal();
+}
+async function saveBizRecord(idx,id){
+  const d={date:i2d(document.getElementById('f-date').value),item:document.getElementById('f-item').value,amount:+document.getElementById('f-amount').value,qty:document.getElementById('f-qty').value};
+  if(!d.date||!d.item){alert('請填寫日期和品項');return;}
+  const maxId=bizData.reduce((a,r)=>Math.max(a,r.id),0);
+  if(idx>=0){Object.assign(bizData[idx],d);}
+  else{bizData.push({...d,id:maxId+1,profitGroup:null,profit:null});}
+  renderBiz();closeModal();
+  await saveSheet('做贈品金額',bizToRows());
+}
+function openProfitModal(group){
+  const g=buildGroupMap(bizData)[group];
+  document.getElementById('modal-title').textContent='修改群組利潤';
+  document.getElementById('modal-body').innerHTML=`
+    <div style="font-size:12px;color:var(--muted);margin-bottom:0.75rem">${g.rows.map(r=>r.item).join('、')}</div>
+    <div class="form-row"><label>合計利潤</label><input type="number" id="f-profit" value="${g.profit??''}"></div>
+    <div class="form-actions"><button class="btn-cancel" onclick="closeModal()">取消</button><button class="btn-save" onclick="saveProfitGroup(${group})">儲存</button></div>`;
+  openModal();
+}
+async function saveProfitGroup(group){
+  const val=document.getElementById('f-profit').value;
+  if(!val){alert('請輸入利潤');return;}
+  const rows=bizData.filter(r=>r.profitGroup===group);
+  rows.forEach(r=>r.profit=null);
+  rows[rows.length-1].profit=+val;
+  renderBiz();closeModal();
+  await saveSheet('做贈品金額',bizToRows());
+}
+function openSoloProfitModal(id){
+  const r=bizData.find(r=>r.id===id);
+  document.getElementById('modal-title').textContent='修改利潤';
+  document.getElementById('modal-body').innerHTML=`
+    <div style="font-size:12px;color:var(--muted);margin-bottom:0.75rem">${r.item}</div>
+    <div class="form-row"><label>利潤金額</label><input type="number" id="f-profit" value="${r.profit??''}"></div>
+    <div class="form-actions"><button class="btn-cancel" onclick="closeModal()">取消</button><button class="btn-save" onclick="saveSoloProfit(${id})">儲存</button></div>`;
+  openModal();
+}
+async function saveSoloProfit(id){
+  const val=document.getElementById('f-profit').value;
+  if(!val){alert('請輸入利潤');return;}
+  bizData.find(r=>r.id===id).profit=+val;
+  renderBiz();closeModal();
+  await saveSheet('做贈品金額',bizToRows());
+}
+function confirmDel(type,ref){
+  document.getElementById('modal-title').textContent='確認刪除';
+  document.getElementById('modal-body').innerHTML=`
+    <p style="font-size:13px;margin-bottom:1rem">確定刪除這筆記錄？此操作無法復原。</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-cancel" onclick="closeModal()">取消</button>
+      <button class="btn-del-ok" onclick="doDelete('${type}',${ref})">確認刪除</button>
+    </div>`;
+  openModal();
+}
+async function doDelete(type,ref){
+  if(type==='savings'){savingsData.splice(ref,1);calcSavingsSummary();renderSavings();closeModal();await saveSheet('活儲帳戶',savingsToRows());}
+  else if(type==='stocks'){stocksData.splice(ref,1);calcStockHoldings();renderStocks();closeModal();await saveSheet('證券帳戶',stocksToRows());}
+  else if(type==='biz'){const i=bizData.findIndex(r=>r.id===ref);if(i>=0)bizData.splice(i,1);renderBiz();closeModal();await saveSheet('做贈品金額',bizToRows());}
+}
+function openModal(){document.getElementById('modal-overlay').classList.add('open');}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('open');}
+function handleOverlayClick(e){if(e.target===document.getElementById('modal-overlay'))closeModal();}
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['savings','stocks','biz'][i]===name));
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+}
+document.getElementById('today-date').textContent=new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'});
+loadAll();
+</script>
+</body>
+</html>
