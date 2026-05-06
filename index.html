@@ -310,7 +310,7 @@ async function loadAll(){
       type:String(r['對象']||''),
       amount:Number(r['金額']||0),
       note:String(r['備註']||''),
-    })).filter(r=>r.date&&r.type);
+    })).filter(r=>r.date&&r.type).sort((a,b)=>b.date.localeCompare(a.date));
 
     stocksData=stk.map(r=>({
       date:parseDate(r['日期']),
