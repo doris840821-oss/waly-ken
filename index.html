@@ -109,17 +109,14 @@ tr:hover td{background:#FFF7F9}
 .stock-list-item{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
 .stock-list-item:last-child{border-bottom:none}
 .divider{border:none;border-top:1px solid var(--border);margin:0.875rem 0}
-.err-bar{background:#FFF0F0;border:1px solid #F7C1C1;border-radius:10px;padding:12px 16px;font-size:13px;color:var(--red);margin:1rem}
 </style>
 </head>
 <body>
-
 <div id="loading-overlay" class="loading-overlay">
   <div class="loading-spinner"></div>
   <div class="loading-text" id="loading-text">從 Google Sheet 載入資料中...</div>
 </div>
 <div id="toast" class="toast"></div>
-
 <div class="header">
   <div class="header-left">
     <div class="logo">W&K</div>
@@ -131,14 +128,12 @@ tr:hover td{background:#FFF7F9}
     <div class="date-badge" id="today-date"></div>
   </div>
 </div>
-
 <div class="tabs">
   <div class="tab active" onclick="switchTab('savings')">💰 活儲帳戶</div>
   <div class="tab" onclick="switchTab('stocks')">📈 證券帳戶</div>
   <div class="tab" onclick="switchTab('biz')">🎁 做贈品收入</div>
 </div>
 
-<!-- 活儲 -->
 <div id="tab-savings" class="section active">
   <div class="content">
     <div class="summary-grid">
@@ -174,7 +169,6 @@ tr:hover td{background:#FFF7F9}
   </div>
 </div>
 
-<!-- 證券 -->
 <div id="tab-stocks" class="section">
   <div class="content">
     <div class="summary-grid">
@@ -205,7 +199,6 @@ tr:hover td{background:#FFF7F9}
   </div>
 </div>
 
-<!-- 做贈品 -->
 <div id="tab-biz" class="section">
   <div class="content">
     <div class="summary-grid">
@@ -242,33 +235,67 @@ let stocksList=[
 ];
 let savingsFilter='all', stockFilter='all';
 
+// ── 日期格式修正：把各種格式都轉成 YYYY/M/D ──
+function parseDate(val){
+  if(!val) return '';
+  const s = String(val);
+  // 已經是 YYYY/M/D 格式
+  if(/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(s)) return s;
+  // YYYY-M-D 格式
+  if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(s)){
+    return s.replace(/-/g,'/');
+  }
+  // ISO 時間戳 2025-04-09T16:00:00.000Z → 用 UTC+8 轉換
+  if(s.includes('T')){
+    const d = new Date(s);
+    // 加8小時轉台灣時間
+    const tw = new Date(d.getTime() + 8*60*60*1000);
+    return `${tw.getUTCFullYear()}/${tw.getUTCMonth()+1}/${tw.getUTCDate()}`;
+  }
+  // Date 物件（Apps Script 有時會直接傳）
+  if(val instanceof Date){
+    return `${val.getFullYear()}/${val.getMonth()+1}/${val.getDate()}`;
+  }
+  return s;
+}
+
 function ic(cls,fn,e,t){return `<button class="ic ${cls}" onclick="${fn}" title="${t}">${e}</button>`;}
-function d2i(d){return String(d).replace(/\//g,'-');}
+function d2i(d){
+  // YYYY/M/D → YYYY-MM-DD
+  const parts=String(d).split('/');
+  if(parts.length===3){
+    return `${parts[0]}-${String(parts[1]).padStart(2,'0')}-${String(parts[2]).padStart(2,'0')}`;
+  }
+  return d;
+}
 function i2d(d){return d.replace(/-/g,'/');}
-function showToast(msg,isErr=false){const t=document.getElementById('toast');t.textContent=msg;t.style.background=isErr?'#A32D2D':'#2C2C2A';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+function showToast(msg,isErr=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.style.background=isErr?'#A32D2D':'#2C2C2A';
+  t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);
+}
 function setStatus(msg){document.getElementById('sync-status').textContent=msg;}
-function setLoading(show,msg='載入中...'){
-  const el=document.getElementById('loading-overlay');
-  el.style.display=show?'flex':'none';
+function setLoading(show,msg){
+  document.getElementById('loading-overlay').style.display=show?'flex':'none';
   if(msg)document.getElementById('loading-text').textContent=msg;
 }
 
-// ── API（用 GET + jsonp-like fetch，避免 CORS）──
 async function apiRead(sheet){
-  const url=`${API}?action=read&sheet=${encodeURIComponent(sheet)}`;
-  const res=await fetch(url);
+  const res=await fetch(`${API}?action=read&sheet=${encodeURIComponent(sheet)}`);
   const json=await res.json();
   if(!json.success)throw new Error(json.error||'讀取失敗');
   return json.data;
 }
 async function apiWrite(sheet,data){
-  const url=`${API}?action=write&sheet=${encodeURIComponent(sheet)}&data=${encodeURIComponent(JSON.stringify(data))}`;
-  const res=await fetch(url);
+  const res=await fetch(`${API}?sheet=${encodeURIComponent(sheet)}`,{
+    method:'POST',
+    headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify(data),
+  });
   const json=await res.json();
   if(!json.success)throw new Error(json.error||'寫入失敗');
 }
 
-// ── 載入所有資料 ──
 async function loadAll(){
   setLoading(true,'從 Google Sheet 載入資料...');
   setStatus('');
@@ -279,14 +306,14 @@ async function loadAll(){
       apiRead('做贈品金額'),
     ]);
     savingsData=sav.map(r=>({
-      date:String(r['日期']||''),
+      date:parseDate(r['日期']),
       type:String(r['對象']||''),
       amount:Number(r['金額']||0),
       note:String(r['備註']||''),
     })).filter(r=>r.date&&r.type);
 
     stocksData=stk.map(r=>({
-      date:String(r['日期']||''),
+      date:parseDate(r['日期']),
       name:String(r['股票名稱']||''),
       code:String(r['股票代號']||''),
       qty:Number(r['數量']||0),
@@ -297,12 +324,12 @@ async function loadAll(){
 
     bizData=biz.map((r,i)=>({
       id:i+1,
-      date:String(r['日期']||''),
+      date:parseDate(r['日期']),
       item:String(r['品項']||''),
       amount:Number(r['金額']||0),
       qty:String(r['數量']||''),
-      profitGroup:r['利潤群組']!==''&&r['利潤群組']!=null&&String(r['利潤群組']).trim()!=='-'&&String(r['利潤群組']).trim()!==''?Number(r['利潤群組']):null,
-      profit:r['利潤']!==''&&r['利潤']!=null&&String(r['利潤']).trim()!==''?Number(r['利潤']):null,
+      profitGroup:(r['利潤群組']!==''&&r['利潤群組']!=null&&String(r['利潤群組']).trim()!=='-'&&String(r['利潤群組']).trim()!=='')?Number(r['利潤群組']):null,
+      profit:(r['利潤']!==''&&r['利潤']!=null&&String(r['利潤']).trim()!=='')?Number(r['利潤']):null,
       noProfit:String(r['利潤群組']||'').trim()==='-',
     })).filter(r=>r.date&&r.item);
 
@@ -312,9 +339,8 @@ async function loadAll(){
     setStatus('已同步 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}));
     showToast('資料已載入 ✓');
   }catch(e){
-    console.error(e);
     showToast('載入失敗：'+e.message,true);
-    setStatus('載入失敗，請重試');
+    setStatus('載入失敗');
   }
   setLoading(false);
 }
