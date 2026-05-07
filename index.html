@@ -410,6 +410,8 @@ async function saveSavingsRecord(idx){
   const d={date:i2d(document.getElementById('f-date').value),type:document.getElementById('f-type').value,amount:+document.getElementById('f-amount').value,note:document.getElementById('f-note').value};
   if(!d.date||!d.amount){alert('請填寫日期和金額');return;}
   if(idx>=0)savingsData[idx]=d; else savingsData.push(d);
+  const _tn=s=>{const p=s.split('/');return Number(p[0])*10000+Number(p[1])*100+Number(p[2]);};
+  savingsData.sort((a,b)=>_tn(b.date)-_tn(a.date));
   calcSavingsSummary();renderSavings();closeModal();
   await saveSheet('活儲帳戶',savingsToRows());
 }
@@ -457,9 +459,19 @@ function stockNameChange(){const s=stocksList.find(s=>s.name===document.getEleme
 async function saveStockRecord(idx){
   const d={date:i2d(document.getElementById('f-date').value),name:document.getElementById('f-name').value,code:document.getElementById('f-code').value,qty:+document.getElementById('f-qty').value,price:+document.getElementById('f-price').value,amount:+document.getElementById('f-amount').value,note:document.getElementById('f-note').value};
   if(!d.date||!d.name){alert('請填寫日期');return;}
+  const isNew=idx<0;
   if(idx>=0)stocksData[idx]=d; else stocksData.push(d);
   calcStockHoldings();renderStocks();closeModal();
-  await saveSheet('證券帳戶',stocksToRows());
+  if(isNew){
+    const savEntry={date:d.date,type:'投資',amount:-d.amount,note:d.name+d.qty+'股'};
+    savingsData.push(savEntry);
+    const _tn=s=>{const p=s.split('/');return Number(p[0])*10000+Number(p[1])*100+Number(p[2]);};
+    savingsData.sort((a,b)=>_tn(b.date)-_tn(a.date));
+    calcSavingsSummary();renderSavings();
+    await Promise.all([saveSheet('證券帳戶',stocksToRows()),saveSheet('活儲帳戶',savingsToRows())]);
+  } else {
+    await saveSheet('證券帳戶',stocksToRows());
+  }
 }
 function openManageStocks(){document.getElementById('modal-title').textContent='管理股票清單';renderManageBody();openModal();}
 function renderManageBody(){
