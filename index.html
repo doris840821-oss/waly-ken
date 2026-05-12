@@ -109,6 +109,13 @@ tr:hover td{background:#FFF7F9}
 .stock-list-item{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
 .stock-list-item:last-child{border-bottom:none}
 .divider{border:none;border-top:1px solid var(--border);margin:0.875rem 0}
+
+.date-filter-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;width:100%}
+.date-filter-row label{font-size:11px;color:var(--muted)}
+.date-filter-row input[type=date]{padding:4px 8px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;color:var(--text);background:#fff;outline:none;width:130px}
+.date-filter-row input[type=date]:focus{border-color:var(--pink)}
+.clear-date-btn{font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;font-family:'Noto Sans TC',sans-serif}
+.clear-date-btn:hover{background:var(--gray-light)}
 </style>
 </head>
 <body>
@@ -160,6 +167,13 @@ tr:hover td{background:#FFF7F9}
           </div>
           <button class="add-btn" onclick="openSavingsModal(-1)">+ 新增</button>
         </div>
+        <div class="date-filter-row">
+          <label>篩選日期</label>
+          <input type="date" id="savings-date-from" onchange="renderSavings()" placeholder="開始">
+          <span style="font-size:12px;color:var(--muted)">～</span>
+          <input type="date" id="savings-date-to" onchange="renderSavings()" placeholder="結束">
+          <button class="clear-date-btn" onclick="clearSavingsDate()">清除</button>
+        </div>
       </div>
       <div style="overflow-x:auto">
         <table><thead><tr><th>日期</th><th>對象</th><th>金額</th><th>備註</th><th style="width:60px"></th></tr></thead>
@@ -190,6 +204,13 @@ tr:hover td{background:#FFF7F9}
           <button class="add-btn" onclick="openManageStocks()">管理股票</button>
           <button class="add-btn" onclick="openStockModal(-1)">+ 新增</button>
         </div>
+        <div class="date-filter-row">
+          <label>篩選日期</label>
+          <input type="date" id="stocks-date-from" onchange="renderStocks()" placeholder="開始">
+          <span style="font-size:12px;color:var(--muted)">～</span>
+          <input type="date" id="stocks-date-to" onchange="renderStocks()" placeholder="結束">
+          <button class="clear-date-btn" onclick="clearStocksDate()">清除</button>
+        </div>
       </div>
       <div style="overflow-x:auto">
         <table><thead><tr><th>日期</th><th>股票</th><th>數量</th><th>成交價</th><th>金額</th><th>備註</th><th style="width:60px"></th></tr></thead>
@@ -210,6 +231,13 @@ tr:hover td{background:#FFF7F9}
       <div class="table-header">
         <div class="table-title">銷售紀錄</div>
         <button class="add-btn" onclick="openBizModal(-1)">+ 新增</button>
+        <div class="date-filter-row">
+          <label>篩選日期</label>
+          <input type="date" id="biz-date-from" onchange="renderBiz()" placeholder="開始">
+          <span style="font-size:12px;color:var(--muted)">～</span>
+          <input type="date" id="biz-date-to" onchange="renderBiz()" placeholder="結束">
+          <button class="clear-date-btn" onclick="clearBizDate()">清除</button>
+        </div>
       </div>
       <div style="overflow-x:auto">
         <table><thead><tr><th>日期</th><th>品項</th><th>金額</th><th>數量</th><th>利潤</th><th style="width:60px"></th></tr></thead>
@@ -296,6 +324,9 @@ async function apiWrite(sheet,data){
   if(!json.success)throw new Error(json.error||'寫入失敗');
 }
 
+function clearSavingsDate(){document.getElementById('savings-date-from').value='';document.getElementById('savings-date-to').value='';renderSavings();}
+function clearStocksDate(){document.getElementById('stocks-date-from').value='';document.getElementById('stocks-date-to').value='';renderStocks();}
+function clearBizDate(){document.getElementById('biz-date-from').value='';document.getElementById('biz-date-to').value='';renderBiz();}
 async function loadAll(){
   setLoading(true,'從 Google Sheet 載入資料...');
   setStatus('');
@@ -381,9 +412,15 @@ function calcSavingsSummary(){
 }
 function renderSavings(){
   const q=(document.getElementById('savings-search').value||'').toLowerCase();
+  const fromS=document.getElementById('savings-date-from')?.value||'';
+  const toS=document.getElementById('savings-date-to')?.value||'';
+  const _tnF=s=>{if(!s)return 0;const p=s.split('-');return Number(p[0])*10000+Number(p[1])*100+Number(p[2]);};
+  const _tnD=s=>{if(!s)return 0;const p=s.split('/');return Number(p[0])*10000+Number(p[1])*100+Number(p[2]);};
   const rows=savingsData.map((r,i)=>({...r,_i:i})).filter(r=>{
     if(savingsFilter!=='all'&&r.type!==savingsFilter)return false;
     if(q&&!r.note.toLowerCase().includes(q)&&!r.type.includes(q))return false;
+    if(fromS&&_tnD(r.date)<_tnF(fromS))return false;
+    if(toS&&_tnD(r.date)>_tnF(toS))return false;
     return true;
   });
   document.getElementById('savings-tbody').innerHTML=rows.map(r=>`<tr>
@@ -429,7 +466,16 @@ function calcStockHoldings(){
   document.getElementById('st-count').textContent=stocksData.length+' 筆';
 }
 function renderStocks(){
-  const rows=stocksData.map((r,i)=>({...r,_i:i})).filter(r=>stockFilter==='all'||r.code===stockFilter||r.name.includes(stockFilter));
+  const fromSt=document.getElementById('stocks-date-from')?.value||'';
+  const toSt=document.getElementById('stocks-date-to')?.value||'';
+  const _tnFx=s=>{if(!s)return 0;const p=s.split('-');return Number(p[0])*10000+Number(p[1])*100+Number(p[2]);};
+  const _tnDx=s=>{if(!s)return 0;const p=s.split('/');return Number(p[0])*10000+Number(p[1])*100+Number(p[2]);};
+  const rows=stocksData.map((r,i)=>({...r,_i:i})).filter(r=>{
+    if(stockFilter!=='all'&&r.code!==stockFilter&&!r.name.includes(stockFilter))return false;
+    if(fromSt&&_tnDx(r.date)<_tnFx(fromSt))return false;
+    if(toSt&&_tnDx(r.date)>_tnFx(toSt))return false;
+    return true;
+  });
   document.getElementById('stocks-tbody').innerHTML=rows.map(r=>`<tr>
     <td class="mono" style="font-size:12px">${r.date}</td>
     <td><div class="stock-name-cell">${r.name}</div><div class="stock-code-cell">${r.code}</div></td>
@@ -497,8 +543,17 @@ function buildGroupMap(data){
   return gm;
 }
 function renderBiz(){
-  const gm=buildGroupMap(bizData);let html='';const done=new Set();
-  bizData.forEach(r=>{
+  const fromBz=document.getElementById('biz-date-from')?.value||'';
+  const toBz=document.getElementById('biz-date-to')?.value||'';
+  const _tnFb=s=>{if(!s)return 0;const p=s.split('-');return Number(p[0])*10000+Number(p[1])*100+Number(p[2]);};
+  const _tnDb=s=>{if(!s)return 0;const p=s.split('/');return Number(p[0])*10000+Number(p[1])*100+Number(p[2]);};
+  const filteredBiz=bizData.filter(r=>{
+    if(fromBz&&_tnDb(r.date)<_tnFb(fromBz))return false;
+    if(toBz&&_tnDb(r.date)>_tnFb(toBz))return false;
+    return true;
+  });
+  const gm=buildGroupMap(filteredBiz);let html='';const done=new Set();
+  filteredBiz.forEach(r=>{
     if(r.profitGroup!=null){
       const g=gm[r.profitGroup];
       if(!done.has(r.profitGroup)){
