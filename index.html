@@ -202,6 +202,7 @@ tr:hover td{background:#FFF7F9}
             <button class="filter-btn" onclick="setStockFilter(this,'2330')">台積電</button>
           </div>
           <button class="add-btn" onclick="openManageStocks()">管理股票</button>
+          <button class="add-btn" style="border-color:var(--teal);background:var(--teal-light);color:var(--teal)" onclick="openSellModal()">📤 賣出</button>
           <button class="add-btn" onclick="openStockModal(-1)">+ 新增</button>
         </div>
         <div class="date-filter-row">
@@ -262,6 +263,7 @@ let stocksList=[
   {name:'元大台灣0050',code:'0050'},
 ];
 let savingsFilter='all', stockFilter='all';
+let sellData=[];
 
 // ── 日期格式修正：把各種格式都轉成 YYYY/M/D ──
 function parseDate(val){
@@ -454,6 +456,99 @@ async function saveSavingsRecord(idx){
 }
 
 // ── Stocks ──
+
+// ── 賣出 ──
+function getHoldings(code){
+  // 計算某支股票的總股數和平均成本
+  const rows=stocksData.filter(r=>r.code===code&&r.qty>0);
+  const totalQty=rows.reduce((a,r)=>a+r.qty,0);
+  const totalCost=rows.reduce((a,r)=>a+r.amount,0);
+  const avgCost=totalQty>0?totalCost/totalQty:0;
+  return {totalQty,totalCost,avgCost,rows};
+}
+
+function openSellModal(){
+  // 建立持股清單
+  const holdMap={};
+  stocksData.filter(r=>r.qty>0).forEach(r=>{
+    if(!holdMap[r.code])holdMap[r.code]={name:r.name,code:r.code,qty:0,cost:0};
+    holdMap[r.code].qty+=r.qty;
+    holdMap[r.code].cost+=r.amount;
+  });
+  const holds=Object.values(holdMap).filter(h=>h.qty>0);
+  if(holds.length===0){alert('目前沒有持股紀錄');return;}
+  document.getElementById('modal-title').textContent='賣出股票';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-row"><label>日期</label><input type="date" id="sell-date"></div>
+    <div class="form-row"><label>股票</label>
+      <select id="sell-code" onchange="updateSellInfo()">
+        ${holds.map(h=>`<option value="${h.code}">${h.name}（${h.code}）持有 ${h.qty.toLocaleString()} 股</option>`).join('')}
+      </select>
+    </div>
+    <div id="sell-info" style="background:var(--gray-light);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--muted);margin-bottom:0.75rem;line-height:1.8"></div>
+    <div class="form-row"><label>賣出股數</label><input type="number" id="sell-qty" placeholder="輸入賣出股數" oninput="calcSellPnL()"></div>
+    <div class="form-row"><label>賣出總金額（實收）</label><input type="number" id="sell-price-total" placeholder="實際入帳金額" oninput="calcSellPnL()"></div>
+    <div id="sell-pnl" style="display:none;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:0.75rem;font-weight:500"></div>
+    <div class="form-row"><label>備註（選填）</label><input type="text" id="sell-note" placeholder="例：停利出場"></div>
+    <div class="form-actions"><button class="btn-cancel" onclick="closeModal()">取消</button><button class="btn-save" style="background:var(--teal);border-color:var(--teal)" onclick="confirmSell()">確認賣出</button></div>`;
+  openModal();
+  updateSellInfo();
+}
+
+function updateSellInfo(){
+  const code=document.getElementById('sell-code')?.value;
+  if(!code)return;
+  const h=getHoldings(code);
+  const avgCost=(h.avgCost).toFixed(2);
+  document.getElementById('sell-info').innerHTML=
+    `持有 <b>${h.totalQty.toLocaleString()}</b> 股 ／ 總成本 <b>NT$${h.totalCost.toLocaleString()}</b> ／ 平均成本 <b>$${avgCost}/股</b>`;
+  calcSellPnL();
+}
+
+function calcSellPnL(){
+  const code=document.getElementById('sell-code')?.value;
+  const qty=+document.getElementById('sell-qty')?.value||0;
+  const sellTotal=+document.getElementById('sell-price-total')?.value||0;
+  const pnlEl=document.getElementById('sell-pnl');
+  if(!code||!qty||!sellTotal){pnlEl.style.display='none';return;}
+  const h=getHoldings(code);
+  const costOfSold=h.avgCost*qty;
+  const pnl=sellTotal-costOfSold;
+  const pnlPct=((pnl/costOfSold)*100).toFixed(1);
+  pnlEl.style.display='block';
+  pnlEl.style.background=pnl>=0?'var(--teal-light)':'var(--red-light)';
+  pnlEl.style.color=pnl>=0?'var(--teal)':'var(--red)';
+  pnlEl.innerHTML=`${pnl>=0?'📈 獲利':'📉 虧損'} NT$${Math.abs(Math.round(pnl)).toLocaleString()} （${pnl>=0?'+':''}${pnlPct}%）<br><span style="font-size:11px;font-weight:400">持有成本 NT$${Math.round(costOfSold).toLocaleString()} → 賣出 NT$${sellTotal.toLocaleString()}</span>`;
+}
+
+async function confirmSell(){
+  const code=document.getElementById('sell-code').value;
+  const dateVal=document.getElementById('sell-date').value;
+  const qty=+document.getElementById('sell-qty').value;
+  const sellTotal=+document.getElementById('sell-price-total').value;
+  const note=document.getElementById('sell-note').value;
+  if(!dateVal){alert('請填寫日期');return;}
+  if(!qty||qty<=0){alert('請填寫賣出股數');return;}
+  if(!sellTotal){alert('請填寫賣出金額');return;}
+  const h=getHoldings(code);
+  if(qty>h.totalQty){alert(`賣出股數不能超過持有股數 ${h.totalQty} 股`);return;}
+  const date=i2d(dateVal);
+  const stockName=stocksList.find(s=>s.code===code)?.name||code;
+  const costOfSold=Math.round(h.avgCost*qty);
+  const pnl=sellTotal-costOfSold;
+  // 用負數股數紀錄賣出
+  stocksData.push({date,name:stockName,code,qty:-qty,price:+(sellTotal/qty).toFixed(2),amount:-sellTotal,note:note||'賣出'});
+  calcStockHoldings();renderStocks();
+  // 活儲同步：賣出收入
+  const savNote=`${stockName}${qty}股 賣出${pnl>=0?'獲利':'虧損'}NT$${Math.abs(Math.round(pnl)).toLocaleString()}`;
+  savingsData.push({date,type:'投資',amount:sellTotal,note:savNote});
+  const _tn=s=>{const p=s.split('/');return Number(p[0])*10000+Number(p[1])*100+Number(p[2]);};
+  savingsData.sort((a,b)=>_tn(b.date)-_tn(a.date));
+  calcSavingsSummary();renderSavings();
+  closeModal();
+  await Promise.all([saveSheet('證券帳戶',stocksToRows()),saveSheet('活儲帳戶',savingsToRows())]);
+}
+
 function stocksToRows(){return stocksData.map(r=>({'日期':r.date,'股票名稱':r.name,'股票代號':r.code,'數量':r.qty,'成交價':r.price,'金額':r.amount,'備註':r.note}));}
 function calcStockHoldings(){
   const map={};
