@@ -351,7 +351,7 @@ async function loadAll(){
     stocksData=stk.map(r=>({
       date:parseDate(r['日期']),
       name:String(r['股票名稱']||''),
-      code:String(r['股票代號']||''),
+      code:String(r['股票代號']||'').trim(),
       qty:Number(r['數量']||0),
       price:Number(r['成交價']||0),
       amount:Number(r['金額']||0),
@@ -459,21 +459,23 @@ async function saveSavingsRecord(idx){
 
 // ── 賣出 ──
 function getHoldings(code){
-  // 計算某支股票的總股數和平均成本
-  const rows=stocksData.filter(r=>r.code===code&&r.qty>0);
-  const totalQty=rows.reduce((a,r)=>a+r.qty,0);
-  const totalCost=rows.reduce((a,r)=>a+r.amount,0);
-  const avgCost=totalQty>0?totalCost/totalQty:0;
-  return {totalQty,totalCost,avgCost,rows};
+  // 計算某支股票的淨持股數和平均買入成本（只用買入的算平均）
+  const allRows=stocksData.filter(r=>r.code===code);
+  const buyRows=allRows.filter(r=>r.qty>0);
+  const totalQty=allRows.reduce((a,r)=>a+r.qty,0); // 含賣出負數
+  const totalBuyCost=buyRows.reduce((a,r)=>a+r.amount,0);
+  const totalBuyQty=buyRows.reduce((a,r)=>a+r.qty,0);
+  const avgCost=totalBuyQty>0?totalBuyCost/totalBuyQty:0;
+  return {totalQty,totalCost:totalBuyCost,avgCost,rows:buyRows};
 }
 
 function openSellModal(){
   // 建立持股清單
   const holdMap={};
-  stocksData.filter(r=>r.qty>0).forEach(r=>{
+  stocksData.forEach(r=>{
     if(!holdMap[r.code])holdMap[r.code]={name:r.name,code:r.code,qty:0,cost:0};
-    holdMap[r.code].qty+=r.qty;
-    holdMap[r.code].cost+=r.amount;
+    holdMap[r.code].qty+=r.qty; // 賣出為負，自動扣除
+    if(r.qty>0) holdMap[r.code].cost+=r.amount;
   });
   const holds=Object.values(holdMap).filter(h=>h.qty>0);
   if(holds.length===0){alert('目前沒有持股紀錄');return;}
@@ -533,7 +535,8 @@ async function confirmSell(){
   const h=getHoldings(code);
   if(qty>h.totalQty){alert(`賣出股數不能超過持有股數 ${h.totalQty} 股`);return;}
   const date=i2d(dateVal);
-  const stockName=stocksList.find(s=>s.code===code)?.name||code;
+  const _nameMap={};stocksData.filter(r=>r.qty>0).forEach(r=>{if(!_nameMap[r.code])_nameMap[r.code]=r.name;});
+  const stockName=_nameMap[code]||stocksList.find(s=>s.code===code)?.name||code;
   const costOfSold=Math.round(h.avgCost*qty);
   const pnl=sellTotal-costOfSold;
   // 用負數股數紀錄賣出
@@ -549,10 +552,14 @@ async function confirmSell(){
   await Promise.all([saveSheet('證券帳戶',stocksToRows()),saveSheet('活儲帳戶',savingsToRows())]);
 }
 
-function stocksToRows(){return stocksData.map(r=>({'日期':r.date,'股票名稱':r.name,'股票代號':r.code,'數量':r.qty,'成交價':r.price,'金額':r.amount,'備註':r.note}));}
+function stocksToRows(){return stocksData.map(r=>({'日期':r.date,'股票名稱':r.name,'股票代號':"'"+r.code,'數量':r.qty,'成交價':r.price,'金額':r.amount,'備註':r.note}));}
 function calcStockHoldings(){
   const map={};
-  stocksData.forEach(r=>{if(!map[r.code])map[r.code]={name:r.name,code:r.code,shares:0,cost:0};map[r.code].shares+=r.qty;map[r.code].cost+=r.amount;});
+  stocksData.forEach(r=>{
+    if(!map[r.code])map[r.code]={name:r.name,code:r.code,shares:0,cost:0};
+    map[r.code].shares+=r.qty; // 買入為正、賣出為負，自動相減
+    if(r.qty>0) map[r.code].cost+=r.amount; // 只累加買入成本
+  });
   const order=stocksList.map(s=>s.code);
   const sorted=order.map(c=>map[c]).filter(Boolean);
   Object.values(map).forEach(v=>{if(!order.includes(v.code))sorted.push(v);});
@@ -576,7 +583,7 @@ function renderStocks(){
     <td><div class="stock-name-cell">${r.name}</div><div class="stock-code-cell">${r.code}</div></td>
     <td class="mono">${r.qty.toLocaleString()}</td>
     <td class="mono">$${r.price.toLocaleString()}</td>
-    <td class="amount-neg">-${r.amount.toLocaleString()}</td>
+    <td class="${r.amount>=0?'amount-pos':'amount-neg'}">${r.amount>=0?'+':'−'}${Math.abs(r.amount).toLocaleString()}</td>
     <td style="font-size:12px;color:var(--muted)">${r.note||'—'}</td>
     <td><div class="actions-cell">${ic('pencil',`openStockModal(${r._i})`,'✏️','編輯')}${ic('cross',`confirmDel('stocks',${r._i})`,'✕','刪除')}</div></td>
   </tr>`).join('');
