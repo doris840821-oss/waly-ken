@@ -543,13 +543,14 @@ async function confirmSell(){
   stocksData.push({date,name:stockName,code,qty:-qty,price:+(sellTotal/qty).toFixed(2),amount:-sellTotal,note:note||'賣出'});
   calcStockHoldings();renderStocks();
   // 活儲同步：賣出收入
-  const savNote=`${stockName}${qty}股 賣出${pnl>=0?'獲利':'虧損'}NT$${Math.abs(Math.round(pnl)).toLocaleString()}`;
+  const savNote=`${stockName} ${qty}股 賣出${pnl>=0?'獲利':'虧損'}NT$${Math.abs(Math.round(pnl)).toLocaleString()}`;
   savingsData.push({date,type:'投資',amount:sellTotal,note:savNote});
   const _tn=s=>{const p=s.split('/');return Number(p[0])*10000+Number(p[1])*100+Number(p[2]);};
   savingsData.sort((a,b)=>_tn(b.date)-_tn(a.date));
   calcSavingsSummary();renderSavings();
   closeModal();
-  await Promise.all([saveSheet('證券帳戶',stocksToRows()),saveSheet('活儲帳戶',savingsToRows())]);
+  await saveSheet('證券帳戶',stocksToRows());
+  await saveSheet('活儲帳戶',savingsToRows());
 }
 
 function stocksToRows(){return stocksData.map(r=>({'日期':r.date,'股票名稱':r.name,'股票代號':"'"+r.code,'數量':r.qty,'成交價':r.price,'金額':r.amount,'備註':r.note}));}
@@ -563,7 +564,7 @@ function calcStockHoldings(){
   const order=stocksList.map(s=>s.code);
   const sorted=order.map(c=>map[c]).filter(Boolean);
   Object.values(map).forEach(v=>{if(!order.includes(v.code))sorted.push(v);});
-  document.getElementById('stock-holdings').innerHTML=sorted.map(s=>`<div class="stock-sum-card"><div class="stock-sum-name">${s.name}</div><div class="stock-sum-code">${s.code}</div><div class="stock-sum-row"><div><span class="stock-sum-shares">${s.shares.toLocaleString()}</span> <span class="stock-sum-unit">股</span></div><div class="stock-sum-cost">-NT$${s.cost.toLocaleString()}</div></div></div>`).join('');
+  document.getElementById('stock-holdings').innerHTML=sorted.map(s=>`<div class="stock-sum-card"><div class="stock-sum-name">${s.name}</div><div class="stock-sum-code">${s.code}</div><div class="stock-sum-row"><div><span class="stock-sum-shares">${s.shares.toLocaleString()}</span> <span class="stock-sum-unit">股</span></div><div class="stock-sum-cost" style="color:${s.shares===0?'var(--teal)':' var(--red)'}">NT$${s.cost.toLocaleString()}</div></div></div>`).join('');
   document.getElementById('st-total').textContent='-NT$'+stocksData.reduce((a,r)=>a+r.amount,0).toLocaleString();
   document.getElementById('st-count').textContent=stocksData.length+' 筆';
 }
@@ -583,7 +584,7 @@ function renderStocks(){
     <td><div class="stock-name-cell">${r.name}</div><div class="stock-code-cell">${r.code}</div></td>
     <td class="mono">${r.qty.toLocaleString()}</td>
     <td class="mono">$${r.price.toLocaleString()}</td>
-    <td class="${r.amount>=0?'amount-pos':'amount-neg'}">${r.amount>=0?'+':'−'}${Math.abs(r.amount).toLocaleString()}</td>
+    <td class="${r.qty>=0?'amount-neg':'amount-pos'}">${r.qty>=0?'−':'+'}${Math.abs(r.amount).toLocaleString()}</td>
     <td style="font-size:12px;color:var(--muted)">${r.note||'—'}</td>
     <td><div class="actions-cell">${ic('pencil',`openStockModal(${r._i})`,'✏️','編輯')}${ic('cross',`confirmDel('stocks',${r._i})`,'✕','刪除')}</div></td>
   </tr>`).join('');
@@ -611,7 +612,7 @@ async function saveStockRecord(idx){
   if(idx>=0)stocksData[idx]=d; else stocksData.push(d);
   calcStockHoldings();renderStocks();closeModal();
   if(isNew){
-    const savEntry={date:d.date,type:'投資',amount:-d.amount,note:d.name+d.qty+'股'};
+    const savEntry={date:d.date,type:'投資',amount:-d.amount,note:d.name+' '+d.qty+'股'};
     savingsData.push(savEntry);
     const _tn=s=>{const p=s.split('/');return Number(p[0])*10000+Number(p[1])*100+Number(p[2]);};
     savingsData.sort((a,b)=>_tn(b.date)-_tn(a.date));
