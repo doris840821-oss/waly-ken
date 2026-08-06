@@ -685,15 +685,31 @@ function openBizModal(id){
     <div class="form-row"><label>品項</label><input type="text" id="f-item" value="${r.item||''}"></div>
     <div class="form-row"><label>金額</label><input type="number" id="f-amount" value="${r.amount||''}"></div>
     <div class="form-row"><label>數量</label><input type="text" id="f-qty" value="${r.qty||''}" placeholder="1000個"></div>
+    <div class="form-row"><label>利潤（選填，填入後自動同步活儲）</label><input type="number" id="f-profit-new" value="${r.profit??''}"></div>
     <div class="form-actions"><button class="btn-cancel" onclick="closeModal()">取消</button><button class="btn-save" onclick="saveBizRecord(${idx},${id})">儲存</button></div>`;
   openModal();
 }
 async function saveBizRecord(idx,id){
   const d={date:i2d(document.getElementById('f-date').value),item:document.getElementById('f-item').value,amount:+document.getElementById('f-amount').value,qty:document.getElementById('f-qty').value};
   if(!d.date||!d.item){alert('請填寫日期和品項');return;}
+  const profitVal=document.getElementById('f-profit-new')?.value;
+  const newProfit=profitVal&&profitVal!==''?+profitVal:null;
   const maxId=bizData.reduce((a,r)=>Math.max(a,r.id),0);
-  if(idx>=0){Object.assign(bizData[idx],d);}else{bizData.push({...d,id:maxId+1,profitGroup:null,profit:null});}
-  renderBiz();closeModal();await saveSheet('做贈品金額',bizToRows());
+  const isNew=idx<0;
+  const oldProfit=idx>=0?bizData[idx].profit:null;
+  if(idx>=0){Object.assign(bizData[idx],d);if(newProfit!==null)bizData[idx].profit=newProfit;}
+  else{bizData.push({...d,id:maxId+1,profitGroup:null,profit:newProfit});}
+  renderBiz();closeModal();
+  await saveSheet('做贈品金額',bizToRows());
+  // 若有填利潤，且是新增 或 利潤有變動，同步到活儲帳戶
+  if(newProfit!==null&&newProfit!==oldProfit){
+    const savNote=`${d.item} ${d.qty} 利潤`;
+    savingsData.push({date:d.date,type:'一起',amount:newProfit,note:savNote});
+    const _tn=s=>{const p=s.split('/');return Number(p[0])*10000+Number(p[1])*100+Number(p[2]);};
+    savingsData.sort((a,b)=>_tn(b.date)-_tn(a.date));
+    calcSavingsSummary();renderSavings();
+    await saveSheet('活儲帳戶',savingsToRows());
+  }
 }
 function openProfitModal(group){
   const g=buildGroupMap(bizData)[group];
