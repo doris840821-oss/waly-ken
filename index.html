@@ -44,6 +44,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .bd-val.ling{color:#D4537E}.bd-val.xiang{color:#185FA5}.bd-val.gift{color:#BA7517}
 .bd-val.invest{color:#0F6E56}.bd-val.interest{color:#3B6D11}.bd-val.dividend{color:#534AB7}
 .bd-val.together{color:#7B3FA0}
+.bd-val.home{color:#E65100}
+.bd-val.travel{color:#00838F}
 .sep{color:var(--border);font-size:13px}
 .stock-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:10px;margin-bottom:1rem}
 .stock-sum-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:0.75rem 1rem}
@@ -69,6 +71,8 @@ tr:hover td{background:#FFF7F9}
 .badge-贈品{background:#FAEEDA;color:#BA7517}.badge-投資{background:#E1F5EE;color:#0F6E56}
 .badge-利息{background:#EAF3DE;color:#3B6D11}.badge-股票配息{background:#EEEDFE;color:#534AB7}
 .badge-一起{background:#F3E8FC;color:#7B3FA0}
+.badge-家用{background:#FFF3E0;color:#E65100}
+.badge-旅遊{background:#E0F7FA;color:#00838F}
 .mono{font-family:'DM Mono',monospace}
 .amount-pos{color:var(--teal);font-family:'DM Mono',monospace}
 .amount-neg{color:var(--red);font-family:'DM Mono',monospace}
@@ -164,6 +168,8 @@ tr:hover td{background:#FFF7F9}
             <button class="filter-btn" onclick="setSavingsFilter(this,'股票配息')">配息</button>
             <button class="filter-btn" onclick="setSavingsFilter(this,'贈品')">贈品</button>
             <button class="filter-btn" onclick="setSavingsFilter(this,'一起')">一起</button>
+            <button class="filter-btn" onclick="setSavingsFilter(this,'家用')">家用</button>
+            <button class="filter-btn" onclick="setSavingsFilter(this,'旅遊')">旅遊</button>
           </div>
           <button class="add-btn" onclick="openSavingsModal(-1)">+ 新增</button>
         </div>
@@ -399,7 +405,7 @@ async function saveSheet(sheet,data){
 // ── Savings ──
 function savingsToRows(){return savingsData.map(r=>({'日期':r.date,'對象':r.type,'金額':r.amount,'備註':r.note}));}
 function calcSavingsSummary(){
-  const t={玲:0,翔:0,贈品:0,投資:0,利息:0,股票配息:0,一起:0};
+  const t={玲:0,翔:0,贈品:0,投資:0,利息:0,股票配息:0,一起:0,家用:0,旅遊:0};
   savingsData.forEach(r=>{if(t[r.type]!==undefined)t[r.type]+=r.amount;});
   document.getElementById('s-balance').textContent='NT$'+savingsData.reduce((a,r)=>a+r.amount,0).toLocaleString();
   document.getElementById('s-total').textContent='NT$'+(t['玲']+t['翔']).toLocaleString();
@@ -410,6 +416,8 @@ function calcSavingsSummary(){
     {label:'贈品',val:t['贈品'],cls:'gift'},{label:'投資',val:t['投資'],cls:'invest'},
     {label:'利息',val:t['利息'],cls:'interest'},{label:'配息',val:t['股票配息'],cls:'dividend'},
     {label:'一起',val:t['一起'],cls:'together'},
+    {label:'家用',val:t['家用'],cls:'home'},
+    {label:'旅遊',val:t['旅遊'],cls:'travel'},
   ];
   document.getElementById('savings-breakdown').innerHTML=
     `<span style="font-size:11px;color:var(--muted);font-weight:500;margin-right:4px">分類加總</span>`+
@@ -442,7 +450,7 @@ function openSavingsModal(idx){
   document.getElementById('modal-title').textContent=idx>=0?'編輯記錄':'新增活儲記錄';
   document.getElementById('modal-body').innerHTML=`
     <div class="form-row"><label>日期</label><input type="date" id="f-date" value="${r.date?d2i(r.date):''}"></div>
-    <div class="form-row"><label>對象</label><select id="f-type">${['玲','翔','投資','利息','股票配息','贈品','一起'].map(t=>`<option${r.type===t?' selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="form-row"><label>對象</label><select id="f-type">${['玲','翔','投資','利息','股票配息','贈品','一起','家用','旅遊'].map(t=>`<option${r.type===t?' selected':''}>${t}</option>`).join('')}</select></div>
     <div class="form-row"><label>金額（支出填負數）</label><input type="number" id="f-amount" value="${r.amount}"></div>
     <div class="form-row"><label>備註</label><input type="text" id="f-note" value="${r.note}"></div>
     <div class="form-actions"><button class="btn-cancel" onclick="closeModal()">取消</button><button class="btn-save" onclick="saveSavingsRecord(${idx})">儲存</button></div>`;
