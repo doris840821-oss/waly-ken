@@ -318,27 +318,28 @@ function setLoading(show,msg){
 
 function jsonpFetch(url){
   return new Promise(function(resolve,reject){
-    const cb='_cb'+Date.now();
+    const cb='_cb'+Date.now()+'_'+Math.floor(Math.random()*10000);
     const script=document.createElement('script');
     const timeout=setTimeout(function(){
-      delete window[cb];
-      document.body.removeChild(script);
+      window[cb]=null;
+      if(script.parentNode)script.parentNode.removeChild(script);
       reject(new Error('Timeout'));
-    },15000);
+    },20000);
     window[cb]=function(data){
       clearTimeout(timeout);
-      delete window[cb];
-      document.body.removeChild(script);
+      window[cb]=null;
+      if(script.parentNode)script.parentNode.removeChild(script);
       resolve(data);
     };
-    script.src=url+(url.includes('?')?'&':'?')+'callback='+cb;
+    const sep=url.includes('?')?'&':'?';
+    script.src=url+sep+'callback='+cb+'&t='+Date.now();
     script.onerror=function(){
       clearTimeout(timeout);
-      delete window[cb];
-      document.body.removeChild(script);
-      reject(new Error('Script load error'));
+      window[cb]=null;
+      if(script.parentNode)script.parentNode.removeChild(script);
+      reject(new Error('載入失敗'));
     };
-    document.body.appendChild(script);
+    document.head.appendChild(script);
   });
 }
 async function apiRead(sheet){
