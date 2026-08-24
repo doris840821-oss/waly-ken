@@ -317,24 +317,23 @@ function setLoading(show,msg){
 }
 
 async function apiRead(sheet){
-  const res=await fetch(`${API}?action=read&sheet=${encodeURIComponent(sheet)}`);
+  const url=`${API}?action=read&sheet=${encodeURIComponent(sheet)}&t=${Date.now()}`;
+  const res=await fetch(url);
   const json=await res.json();
   if(!json.success)throw new Error(json.error||'讀取失敗');
   return json.data;
 }
 async function apiWrite(sheet,data){
-  // 先清空再逐筆 append，每筆用 GET 傳送
-  const clearUrl=`${API}?action=clear&sheet=${encodeURIComponent(sheet)}`;
-  const cr=await fetch(clearUrl);
+  // 清空
+  const cr=await fetch(`${API}?action=clear&sheet=${encodeURIComponent(sheet)}&t=${Date.now()}`);
   const cj=await cr.json();
-  if(!cj.success)throw new Error('清空失敗：'+cj.error);
-  for(let i=0;i<data.length;i++){
-    const row=data[i];
-    const encoded=encodeURIComponent(JSON.stringify(row));
-    const url=`${API}?action=appendRow&sheet=${encodeURIComponent(sheet)}&row=${encoded}`;
-    const res=await fetch(url);
-    const json=await res.json();
-    if(!json.success)throw new Error('寫入第'+(i+1)+'筆失敗：'+json.error);
+  if(!cj.success)throw new Error('清空失敗');
+  // 每次5筆並行送出
+  for(let i=0;i<data.length;i+=5){
+    await Promise.all(data.slice(i,i+5).map(row=>{
+      const url=`${API}?action=appendRow&sheet=${encodeURIComponent(sheet)}&row=${encodeURIComponent(JSON.stringify(row))}&t=${Date.now()}`;
+      return fetch(url).then(r=>r.json());
+    }));
   }
 }
 async function loadAll(){
