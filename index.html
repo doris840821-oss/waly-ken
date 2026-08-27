@@ -324,16 +324,36 @@ async function apiRead(sheet){
   return json.data;
 }
 async function apiWrite(sheet,data){
-  // 清空
-  const cr=await fetch(`${API}?action=clear&sheet=${encodeURIComponent(sheet)}&t=${Date.now()}`);
-  const cj=await cr.json();
-  if(!cj.success)throw new Error('清空失敗');
-  // 每次5筆並行送出
-  for(let i=0;i<data.length;i+=5){
-    await Promise.all(data.slice(i,i+5).map(row=>{
-      const url=`${API}?action=appendRow&sheet=${encodeURIComponent(sheet)}&row=${encodeURIComponent(JSON.stringify(row))}&t=${Date.now()}`;
-      return fetch(url).then(r=>r.json());
-    }));
+  try{
+    // 1. 先讀取現有資料備份
+    const backup=await apiRead(sheet);
+    // 2. 清空
+    const cr=await fetch(`${API}?action=clear&sheet=${encodeURIComponent(sheet)}&t=${Date.now()}`);
+    const cj=await cr.json();
+    if(!cj.success)throw new Error('清空失敗');
+    // 3. 逐筆寫入，失敗就還原
+    try{
+      for(let i=0;i<data.length;i+=3){
+        await Promise.all(data.slice(i,i+3).map(row=>{
+          const url=`${API}?action=appendRow&sheet=${encodeURIComponent(sheet)}&row=${encodeURIComponent(JSON.stringify(row))}&t=${Date.now()}`;
+          return fetch(url).then(r=>r.json());
+        }));
+      }
+    }catch(writeErr){
+      // 寫入失敗，還原備份
+      showToast('寫入失敗，正在還原...',true);
+      const cr2=await fetch(`${API}?action=clear&sheet=${encodeURIComponent(sheet)}&t=${Date.now()}`);
+      await cr2.json();
+      for(let i=0;i<backup.length;i+=3){
+        await Promise.all(backup.slice(i,i+3).map(row=>{
+          const url=`${API}?action=appendRow&sheet=${encodeURIComponent(sheet)}&row=${encodeURIComponent(JSON.stringify(row))}&t=${Date.now()}`;
+          return fetch(url).then(r=>r.json());
+        }));
+      }
+      throw new Error('寫入失敗已還原，請重試');
+    }
+  }catch(e){
+    throw e;
   }
 }
 async function loadAll(){
