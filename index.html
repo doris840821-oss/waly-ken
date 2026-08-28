@@ -259,7 +259,7 @@ tr:hover td{background:#FFF7F9}
 </div>
 
 <script>
-const API='https://script.google.com/macros/s/AKfycbwkadDijjW89Cg-JTXJ0Mbs5RlYjHMEyJep2F6rRj709fqM_6vpQnAev2wN-R4bD6O8Ig/exec';
+const API='https://script.google.com/macros/s/AKfycbycu_s62PiOrH2L1FvcHWZS2xJne1M6YLDBCVpKeZABG4OBXzLKcYcvb-ASk0EXc2Ti/exec';
 
 let savingsData=[], stocksData=[], bizData=[];
 let stocksList=[
@@ -323,39 +323,45 @@ async function apiRead(sheet){
   if(!json.success)throw new Error(json.error||'讀取失敗');
   return json.data;
 }
-async function apiWrite(sheet,data){
+async function apiWrite(sheet, data){
+  // 策略：直接用 writeAll action 一次傳所有資料
+  // 但用分批 GET 方式：先 clear，再分批 append
+  // 為安全起見，先讀取備份
+  let backup = [];
+  try { backup = await apiRead(sheet); } catch(e){}
+
+  // 清空
   try{
-    // 1. 先讀取現有資料備份
-    const backup=await apiRead(sheet);
-    // 2. 清空
-    const cr=await fetch(`${API}?action=clear&sheet=${encodeURIComponent(sheet)}&t=${Date.now()}`);
-    const cj=await cr.json();
-    if(!cj.success)throw new Error('清空失敗');
-    // 3. 逐筆寫入，失敗就還原
-    try{
-      for(let i=0;i<data.length;i+=3){
-        await Promise.all(data.slice(i,i+3).map(row=>{
-          const url=`${API}?action=appendRow&sheet=${encodeURIComponent(sheet)}&row=${encodeURIComponent(JSON.stringify(row))}&t=${Date.now()}`;
-          return fetch(url).then(r=>r.json());
-        }));
-      }
-    }catch(writeErr){
-      // 寫入失敗，還原備份
-      showToast('寫入失敗，正在還原...',true);
-      const cr2=await fetch(`${API}?action=clear&sheet=${encodeURIComponent(sheet)}&t=${Date.now()}`);
-      await cr2.json();
-      for(let i=0;i<backup.length;i+=3){
-        await Promise.all(backup.slice(i,i+3).map(row=>{
-          const url=`${API}?action=appendRow&sheet=${encodeURIComponent(sheet)}&row=${encodeURIComponent(JSON.stringify(row))}&t=${Date.now()}`;
-          return fetch(url).then(r=>r.json());
-        }));
-      }
-      throw new Error('寫入失敗已還原，請重試');
-    }
+    const cr = await fetch(`${API}?action=clear&sheet=${encodeURIComponent(sheet)}&t=${Date.now()}`);
+    const cj = await cr.json();
+    if(!cj.success) throw new Error('清空失敗:'+cj.error);
   }catch(e){
-    throw e;
+    throw new Error('清空失敗，資料未變動');
+  }
+
+  // 逐筆寫入
+  for(let i=0; i<data.length; i++){
+    try{
+      const url=`${API}?action=appendRow&sheet=${encodeURIComponent(sheet)}&row=${encodeURIComponent(JSON.stringify(data[i]))}&t=${Date.now()}`;
+      const res = await fetch(url);
+      const json = await res.json();
+      if(!json.success) throw new Error(json.error);
+    }catch(e){
+      // 寫入失敗 → 還原備份
+      showToast('發生錯誤，正在還原資料...', true);
+      try{
+        await fetch(`${API}?action=clear&sheet=${encodeURIComponent(sheet)}&t=${Date.now()}`);
+        for(let j=0; j<backup.length; j++){
+          await fetch(`${API}?action=appendRow&sheet=${encodeURIComponent(sheet)}&row=${encodeURIComponent(JSON.stringify(backup[j]))}&t=${Date.now()}`);
+        }
+        showToast('資料已還原，請重試', true);
+      }catch(re){ showToast('還原失敗，請手動確認 Google Sheet', true); }
+      throw new Error('寫入中斷，資料已還原');
+    }
   }
 }
+
+
 async function loadAll(){
   setLoading(true,'從 Google Sheet 載入資料...');
   setStatus('');
@@ -730,10 +736,11 @@ async function saveBizRecord(idx,id){
   else{bizData.push({...d,id:maxId+1,profitGroup:null,profit:newProfit});}
   renderBiz();closeModal();
   await saveSheet('做贈品金額',bizToRows());
-  // 若有填利潤，且是新增 或 利潤有變動，同步到活儲帳戶
+  // 若有填利潤，同步到活儲帳戶
   if(newProfit!==null&&newProfit!==oldProfit){
     const savNote=`${d.item} ${d.qty} 利潤`;
-    savingsData.push({date:d.date,type:'一起',amount:newProfit,note:savNote});
+    const savEntry={date:d.date,type:'一起',amount:newProfit,note:savNote};
+    savingsData.push(savEntry);
     const _tn=s=>{const p=s.split('/');return Number(p[0])*10000+Number(p[1])*100+Number(p[2]);};
     savingsData.sort((a,b)=>_tn(b.date)-_tn(a.date));
     calcSavingsSummary();renderSavings();
